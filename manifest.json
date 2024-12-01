@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "YouTube Time Tracker and Limiter",
-  "version": "0.1.5",
+  "version": "0.1.9",
   "permissions": ["tabs", "storage", "alarms", "activeTab", "notifications"],
   "background": {
     "scripts": ["background.js"],

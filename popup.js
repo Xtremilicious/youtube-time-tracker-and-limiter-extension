@@ -42,7 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const overrideBtn = document.getElementById("override-btn");
     if (isActive) {
       overrideBtn.disabled = true;
-      overrideBtn.innerHTML = `<p>Override active <br>(~ ${overrideLimit} minutes)</p>`;
+      overrideBtn.innerHTML = `<p>Override active <br>(~${overrideLimit} minutes)</p>`;
       overrideBtn.style.color = "#ff0000";
     } else {
       overrideBtn.disabled = false;

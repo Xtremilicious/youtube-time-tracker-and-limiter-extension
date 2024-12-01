@@ -159,6 +159,7 @@ function resetTimer() {
 function getResetTimestamp(resetTime) {
   const now = new Date();
   const resetTimeToday = new Date(now.toDateString() + " " + resetTime);
+  console.log(now, resetTimeToday, resetTimeToday <= now);
 
   // If the reset time has already passed, schedule it for tomorrow
   if (resetTimeToday <= now) {
@@ -178,36 +179,19 @@ function updateAlarm() {
     console.log("resetTimestamp:", new Date(resetTimestamp));
 
     // Check if the alarm exists and clear it before setting the new one
-    chrome.alarms.get("resetTimer", (alarm) => {
+    chrome.alarms.get("resetTimerAlarm", (alarm) => {
       if (alarm) {
-        chrome.alarms.clear("resetTimer", () => {
+        chrome.alarms.clear("resetTimerAlarm", () => {
           console.log("Existing alarm cleared.");
         });
       }
 
-      chrome.alarms.create("resetTimer", {
+      chrome.alarms.create("resetTimerAlarm", {
         when: resetTimestamp,
         periodInMinutes: 1440, // Repeat daily
       });
     });
   });
-}
-
-/**
- * Function to update the reset time and reschedule the alarm.
- * @param {string} newResetTime - New reset time in HH:mm format.
- */
-function updateResetTime(newResetTime) {
-  chrome.storage.local.set({ resetTime: newResetTime }, () => {
-    console.log("resetTime updated to", newResetTime);
-  });
-
-  const resetTimestamp = getResetTimestamp(newResetTime);
-  chrome.alarms.create("resetTimer", {
-    when: resetTimestamp,
-    periodInMinutes: 1440,
-  });
-  console.log("Alarm rescheduled for:", newResetTime);
 }
 
 // Message listener for communication between background and other components (popup, content scripts)
@@ -239,12 +223,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       overrideSetTimout = setTimeout(() => {
         isOverrideActive = false;
         chrome.storage.local.set({ isOverrideActive: false });
+        if (isYouTubeTab && isYouTubeVisible) {
+          startTimer();
+        }
       }, message.overrideLimit * 60 * 1000); // Override lasts for overrideLimit minutes
       break;
 
     case "updateVisibility":
       const { isVisible } = message;
       isYouTubeVisible = isVisible;
+      console.log(
+        "pauseOnMinimize:",
+        pauseOnMinimize,
+        "isYouTubeVisible:",
+        isYouTubeVisible
+      );
 
       if (sender.tab.id === activeTabId) {
         if (isYouTubeVisible) {
@@ -293,6 +286,7 @@ function loadRemainingTime(dailyLimit, callback) {
       remainingTime = data.remainingTime;
     } else {
       remainingTime = dailyLimit * 60; // Default to daily limit if not saved
+      chrome.storage.local.set({ remainingTime });
     }
     updateBadge();
     if (callback) callback();
@@ -314,12 +308,40 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
+  console.log("Browser started. Checking active tab...");
+
+  // Get the currently active tab in the current window
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const activeTab = tabs[0];
+
+    if (activeTab && activeTab.url && activeTab.url.includes("youtube.com")) {
+      console.log("Active YouTube tab detected on startup. Starting timer...");
+      activeTabId = activeTab.id; // Set the active tab ID
+      isYouTubeTab = true;
+      isYouTubeVisible = true;
+
+      startTimer(); // Start the timer for YouTube
+    } else {
+      console.log("No active YouTube tab detected on startup.");
+      isYouTubeTab = false;
+      isYouTubeVisible = false;
+    }
+  });
+
+  // Load remaining time for badge update
   chrome.storage.local.get(["remainingTime", "dailyLimits"], (data) => {
     if (data.remainingTime !== undefined || data.dailyLimits !== undefined) {
       remainingTime = data.remainingTime;
       updateBadge();
     } else {
       loadDefaultSettings();
+    }
+  });
+
+  // Load pause on minimize state from storage
+  chrome.storage.local.get(["pauseOnMinimize"], (data) => {
+    if (data.pauseOnMinimize !== undefined) {
+      pauseOnMinimize = data.pauseOnMinimize;
     }
   });
 });
@@ -341,14 +363,31 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 
 // Listen for tab updates (URL or content changes)
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (tabId === activeTabId) {
-    isYouTubeTab = tab.url.includes("youtube.com"); // Check if it's YouTube
-    if (isYouTubeTab && isYouTubeVisible) {
-      console.log("YouTube tab updated. Resuming timer...");
+  // Ensure we only process when the tab's URL changes
+  if (changeInfo.url) {
+    const isNowYouTube = changeInfo.url.includes("youtube.com");
+    const wasPreviouslyYouTube = isYouTubeTab && tabId === activeTabId;
+
+    if (isNowYouTube) {
+      // Update flags and start the timer if it wasn't already running
+      activeTabId = tabId;
+      isYouTubeTab = true;
+      isYouTubeVisible = true;
+
+      console.log("YouTube tab detected. Starting timer...");
       startTimer();
-    } else {
-      console.log("Non-YouTube tab updated. Stopping timer...");
+    } else if (wasPreviouslyYouTube) {
+      // If the tab was previously YouTube but is no longer, stop the timer
+      console.log("YouTube tab updated to non-YouTube. Stopping timer...");
+      isYouTubeTab = false;
       stopTimer();
     }
+  }
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "resetTimerAlarm") {
+    console.log("Reset timer alarm triggered. Resetting timer...");
+    resetTimer();
   }
 });

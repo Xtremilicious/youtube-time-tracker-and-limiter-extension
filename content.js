@@ -17,6 +17,8 @@ function handleVisibilityChange() {
   const isVisible =
     document.visibilityState === "visible" && document.hidden !== true;
 
+  console.log("handleVisibilityChange:", isVisible);
+
   // Send tabId along with the visibility state
   chrome.runtime.sendMessage({
     action: "updateVisibility",
