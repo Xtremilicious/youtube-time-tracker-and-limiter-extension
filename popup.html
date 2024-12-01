@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YouTube Tracker</title>
+    <style>
+      /* General Styles */
+      body {
+        font-family: "Roboto", Arial, sans-serif; /* YouTube's font */
+        background-color: #181818; /* YouTube's dark theme background */
+        color: #ffffff; /* White text for contrast */
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border: 1px solid #303030; /* Border similar to YouTube's modal */
+        font-family: "Roboto", sans-serif;
+      }
+
+      #popup {
+        width: 250px;
+        padding: 10px;
+      }
+
+      h1 {
+        font-size: 1.35rem;
+        margin: 0;
+        padding: 0;
+        margin-bottom: 10px;
+      }
+
+      p {
+        font-size: 1rem;
+        margin: 10px 0;
+      }
+
+      #time-remaining {
+        font-weight: bold;
+        color: #ffcc00; /* Yellow for visibility */
+      }
+
+      #buttons {
+        display: flex;
+        margin: 0 -10px -10px -10px;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      #override-btn {
+        color: #ffffff;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 4px;
+        background-color: transparent;
+        font-size: 0.9rem;
+        margin: 0;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+
+      #override-btn:hover {
+        background-color: #cc0000; /* Darker red on hover */
+      }
+
+      a {
+        font-size: 0.9rem;
+        color: #ffcc00; /* Yellow for link */
+        text-decoration: none;
+        transition: color 0.3s;
+        padding: 5px 10px;
+        margin: 0;
+      }
+
+      a:hover {
+        color: #ff9900; /* Slightly darker yellow on hover */
+      }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="popup">
+      <h1>YouTube Tracker/Limiter</h1>
+      <p>Time Remaining: <span id="time-remaining">00:00</span></p>
+      <div id="buttons">
+        <button id="override-btn" disabled>Override</button>
+        <a href="options.html">Settings</a>
+      </div>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>
