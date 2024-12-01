@@ -113,7 +113,7 @@ function addHoveringTimer() {
       if (response && response.time) {
         timer.textContent = formatTime(response.time);
       } else {
-        timer.textContent = "Error";
+        timer.textContent = "00:00";
       }
     });
   }, 1000);

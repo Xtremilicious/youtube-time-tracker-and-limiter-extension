@@ -39,7 +39,7 @@
 
       /* Header */
       h1 {
-        color: #ff0000; /* YouTube red */
+        color: #ff0033; /* YouTube red */
         margin-bottom: 1rem;
         font-size: 1.8rem; /* Larger font for better visibility */
       }
@@ -57,7 +57,7 @@
       input[type="time"],
       input[type="number"],
       input[type="checkbox"] {
-        width: 100%;
+        width: 70%; /* Make inputs smaller to fit on the same line */
         padding: 0.5rem;
         margin-bottom: 1rem;
         border: 1px solid #444;
@@ -72,9 +72,27 @@
         margin-top: 0.5rem;
       }
 
+      /* Save Buttons */
+      button {
+        background-color: #ffcc00; /* YouTube red */
+        color: #000000;
+        border: none;
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.3s ease;
+        width: 25%; /* Adjust button size */
+        margin-left: 1rem; /* Space between input and button */
+      }
+
+      button:hover {
+        background-color: #cc0000; /* Darker red on hover */
+      }
+
       /* Daily Limits Section */
       h2 {
-        color: #ff0000; /* YouTube red for section title */
+        color: #ff0033; /* YouTube red for section title */
         margin-bottom: 1rem;
         font-size: 1.4rem;
         text-align: left;
@@ -89,6 +107,7 @@
 
       .daily-limit-container input {
         margin-bottom: 1rem;
+        width: 100%;
       }
 
       .daily-limit-container label {
@@ -103,23 +122,6 @@
         text-align: left;
         color: #cccccc;
         margin-bottom: 1rem;
-      }
-
-      /* Save Button */
-      button {
-        background-color: #ff0000; /* YouTube red */
-        color: #ffffff;
-        border: none;
-        padding: 0.7rem 1.5rem;
-        font-size: 1rem;
-        font-weight: bold;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background 0.3s ease;
-      }
-
-      button:hover {
-        background-color: #cc0000; /* Darker red on hover */
       }
 
       /* Responsive Design */
@@ -151,36 +153,43 @@
     <div id="settings-container">
       <h1>Settings</h1>
       <form id="settings-form">
-        <label for="reset-time">Reset Time:</label>
-        <input type="time" id="reset-time" name="reset-time" />
+        <div class="setting">
+          <label for="reset-time">Reset Time:</label>
+          <div class="input-button-container">
+            <input type="time" id="reset-time" name="reset-time" />
+            <button type="button" id="save-reset-time">Save</button>
+          </div>
+        </div>
 
-        <label for="pause-on-minimize">
-          <input
-            type="checkbox"
-            id="pause-on-minimize"
-            name="pause-on-minimize"
-          />
-          Pause when minimized
-        </label>
+        <div class="setting">
+          <label for="pause-on-minimize">
+            <input
+              type="checkbox"
+              id="pause-on-minimize"
+              name="pause-on-minimize"
+            />
+            Pause when minimized or not visible
+          </label>
+        </div>
 
-        <!-- <label for="show-timer">
-          <input type="checkbox" id="show-timer" name="show-timer" />
-          Show Hovering Timer on YouTube
-        </label> -->
-
-        <label for="override-limit">Override Limit (minutes):</label>
-        <input
-          type="number"
-          id="override-limit"
-          name="override-limit"
-          min="1"
-        />
+        <div class="setting">
+          <label for="override-limit">Override Limit (minutes):</label>
+          <div class="input-button-container">
+            <input
+              type="number"
+              id="override-limit"
+              name="override-limit"
+              min="1"
+            />
+            <button type="button" id="save-override-limit">Save</button>
+          </div>
+        </div>
 
         <h2>Daily Limits</h2>
         <p class="helper-text">Set daily time limits in minutes.</p>
         <div id="daily-limits" class="daily-limit-container"></div>
 
-        <button type="submit">Save</button>
+        <button id="save-daily-limits" type="button">Save</button>
       </form>
     </div>
 

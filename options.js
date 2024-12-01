@@ -40,25 +40,46 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   );
 
-  document.getElementById("settings-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    const dailyLimits = {};
-    for (let [key, value] of formData.entries()) {
-      if (["reset-time", "pause-on-minimize", "override-limit"].includes(key))
-        continue;
-      dailyLimits[key] = parseInt(value);
-    }
-    chrome.storage.local.set({
-      dailyLimits,
-      resetTime: formData.get("reset-time"),
-      pauseOnMinimize: formData.get("pause-on-minimize") === "on",
-      overrideLimit: parseInt(formData.get("override-limit")),
+  document.getElementById("save-reset-time").addEventListener("click", () => {
+    const resetTime = document.getElementById("reset-time").value;
+    chrome.storage.local.set({ resetTime });
+    chrome.runtime.sendMessage({
+      action: "saveResetTime",
+      newResetTime: resetTime,
     });
-    chrome.runtime.sendMessage({ action: "resetTimer" });
+    console.log("Reset Time saved:", resetTime);
   });
-});
 
-document.getElementById("show-timer").addEventListener("change", (e) => {
-  chrome.storage.local.set({ showTimer: e.target.checked });
+  // Pause on Minimize Change Handler
+  document
+    .getElementById("pause-on-minimize")
+    .addEventListener("change", (e) => {
+      chrome.storage.local.set({ pauseOnMinimize: e.target.checked });
+      chrome.runtime.sendMessage({
+        action: "savePauseOnMinimize",
+        pauseState: e.target.checked,
+      });
+    });
+
+  document
+    .getElementById("save-override-limit")
+    .addEventListener("click", () => {
+      const overrideLimit = parseInt(
+        document.getElementById("override-limit").value
+      );
+      chrome.storage.local.set({ overrideLimit });
+      chrome.runtime.sendMessage({ action: "saveOverrideLimit" });
+      console.log("Override Limit saved:", overrideLimit);
+    });
+
+  document.getElementById("save-daily-limits").addEventListener("click", () => {
+    const dailyLimits = {};
+    const dailyLimitInputs = document.querySelectorAll("#daily-limits input");
+    dailyLimitInputs.forEach((input) => {
+      dailyLimits[input.name] = parseInt(input.value);
+    });
+    chrome.storage.local.set({ dailyLimits });
+    chrome.runtime.sendMessage({ action: "saveDailyLimit" });
+    console.log("Daily Limits saved:", dailyLimits);
+  });
 });
