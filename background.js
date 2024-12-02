@@ -25,6 +25,7 @@ function loadDefaultSettings(callback) {
       Sunday: 30,
     },
     resetTime: "00:00", // Default reset time
+    remainingTime: 30 * 60, // Default to 30 minutes
     pauseOnMinimize: true, // Default to pause on minimize
     overrideLimit: 10, // Default override duration in minutes
   };
@@ -38,7 +39,7 @@ function loadDefaultSettings(callback) {
     }
 
     const day = new Date().toLocaleString("en-US", { weekday: "long" });
-    const dailyLimit = data?.dailyLimits?.[day] || 0;
+    const dailyLimit = data?.dailyLimits?.[day] || 30;
     loadRemainingTime(dailyLimit, () => {
       updateBadge();
       if (callback) callback(data);
@@ -243,7 +244,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (isYouTubeVisible) {
           console.log("YouTube tab is visible. Resuming timer...");
           startTimer();
-        } else if (!pauseOnMinimize) {
+        } else if (pauseOnMinimize) {
           console.log("YouTube tab is not visible. Pausing timer...");
           stopTimer();
         }
