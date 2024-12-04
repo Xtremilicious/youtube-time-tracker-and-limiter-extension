@@ -155,42 +155,58 @@ function resetTimer() {
 /**
  * Get the timestamp for the next reset based on the configured reset time.
  * @param {string} resetTime - The time at which the timer should reset (HH:mm).
+ * @param {number} [savedTimestamp] - Optional saved alarm timestamp for reference.
  * @returns {number} - The timestamp for the next reset.
  */
-function getResetTimestamp(resetTime) {
+function getResetTimestamp(resetTime, savedTimestamp) {
   const now = new Date();
-  const resetTimeToday = new Date(now.toDateString() + " " + resetTime);
-  console.log(now, resetTimeToday, resetTimeToday <= now);
 
-  // If the reset time has already passed, schedule it for tomorrow
-  if (resetTimeToday <= now) {
-    resetTimeToday.setDate(now.getDate() + 1);
+  // If a saved timestamp exists and is in the future, return it
+  if (savedTimestamp && savedTimestamp > now.getTime()) {
+    return savedTimestamp;
   }
 
+  const resetTimeToday = new Date(now.toDateString() + " " + resetTime);
   return resetTimeToday.getTime();
 }
 
 /**
  * Update the alarm for the next reset based on the reset time.
  */
-function updateAlarm() {
-  chrome.storage.local.get("resetTime", (data) => {
+function updateAlarm(forceUpdate = false) {
+  chrome.storage.local.get(["resetTime", "alarmTimestamp"], (data) => {
     const resetTime = data.resetTime || "00:00";
-    const resetTimestamp = getResetTimestamp(resetTime);
-    console.log("resetTimestamp:", new Date(resetTimestamp));
+    const savedTimestamp = !forceUpdate ? data.alarmTimestamp : null;
 
-    // Check if the alarm exists and clear it before setting the new one
-    chrome.alarms.get("resetTimerAlarm", (alarm) => {
-      if (alarm) {
-        chrome.alarms.clear("resetTimerAlarm", () => {
-          console.log("Existing alarm cleared.");
-        });
-      }
+    console.log("resetTime:", resetTime);
+    console.log(
+      "savedTimestamp:",
+      savedTimestamp ? new Date(savedTimestamp) : "None"
+    );
 
+    const resetTimestamp = getResetTimestamp(resetTime, savedTimestamp);
+    const now = Date.now();
+
+    // Adjust the timestamp if the reset time has passed
+    const adjustedTimestamp =
+      resetTimestamp <= now
+        ? resetTimestamp + 24 * 60 * 60 * 1000 // Add 1 day if passed
+        : resetTimestamp;
+
+    console.log("adjustedTimestamp:", new Date(adjustedTimestamp));
+
+    // Save the new alarm timestamp
+    chrome.storage.local.set({ alarmTimestamp: adjustedTimestamp }, () => {
+      console.log("Saved alarm timestamp:", new Date(adjustedTimestamp));
+    });
+
+    // Clear existing alarm and set a new one
+    chrome.alarms.clear("resetTimerAlarm", () => {
       chrome.alarms.create("resetTimerAlarm", {
-        when: resetTimestamp,
+        when: adjustedTimestamp,
         periodInMinutes: 1440, // Repeat daily
       });
+      console.log("Alarm set for:", new Date(adjustedTimestamp));
     });
   });
 }
@@ -260,7 +276,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.log(`Saving new reset time: ${newResetTime}`);
       chrome.storage.local.set({ resetTime: newResetTime }, () => {
         console.log(`New reset time saved`);
-        updateAlarm(); // Reschedule the alarm with the new reset time
+        updateAlarm(true); // Reschedule the alarm with the new reset time
       });
       break;
 
@@ -341,9 +357,29 @@ chrome.runtime.onStartup.addListener(() => {
 
   // Load pause on minimize state from storage
   chrome.storage.local.get(["pauseOnMinimize"], (data) => {
-    if (data.pauseOnMinimize !== undefined) {
-      pauseOnMinimize = data.pauseOnMinimize;
+    pauseOnMinimize = data.pauseOnMinimize ?? true;
+  });
+
+  chrome.storage.local.get(["resetTime", "alarmTimestamp"], (data) => {
+    const resetTime = data.resetTime || "00:00";
+    const savedTimestamp = data.alarmTimestamp;
+
+    console.log("resetTime:", resetTime);
+    console.log(
+      "savedTimestamp:",
+      savedTimestamp ? new Date(savedTimestamp) : "None"
+    );
+
+    // Calculate the reset timestamp using savedTimestamp if it exists
+    const resetTimestamp = getResetTimestamp(resetTime, savedTimestamp);
+
+    if (Date.now() >= resetTimestamp) {
+      console.log("Reset time has passed. Triggering reset...");
+      resetTimer();
     }
+
+    // Reschedule the alarm
+    updateAlarm();
   });
 });
 
