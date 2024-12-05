@@ -1,94 +1,279 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>YouTube Tracker</title>
-    <style>
-      /* General Styles */
-      body {
-        font-family: "Roboto", Arial, sans-serif; /* YouTube's font */
-        background-color: #181818; /* YouTube's dark theme background */
-        color: #ffffff; /* White text for contrast */
-        margin: 0;
-        padding: 0;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        border: 1px solid #303030; /* Border similar to YouTube's modal */
-        font-family: "Roboto", sans-serif;
-      }
 
-      #popup {
-        width: 250px;
-        padding: 10px;
-      }
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube Tracker</title>
+  <style>
+    /* General Styles */
+    html {
+      background-color: transparent;
+    }
 
-      h1 {
-        font-size: 1.35rem;
-        margin: 0;
-        padding: 0;
-        margin-bottom: 10px;
-      }
+    body {
+      font-family: "Roboto Condensed", sans-serif;
+      font-optical-sizing: auto;
+      background-color: #292a2d;
+      /* YouTube's dark theme background */
+      color: #ffffff;
+      /* White text for contrast */
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border: 1px solid black;
+      /* Border similar to YouTube's modal */
+      box-shadow: 0px 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
 
-      p {
-        font-size: 1rem;
-        margin: 10px 0;
-      }
+    #popup {
+      width: 350px;
+      padding: 10px;
+    }
 
-      #time-remaining {
-        font-weight: bold;
-        color: #ffcc00; /* Yellow for visibility */
-      }
+    .status-container {
+      border: 1.5px solid #3a3b3e;
+      border-radius: 7px;
+      padding: 10px 15px;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
 
-      #buttons {
-        display: flex;
-        margin: 0 -10px -10px -10px;
-        align-items: center;
-        justify-content: space-between;
-      }
-
-      #override-btn {
-        color: #ffffff;
-        border: none;
-        padding: 5px 10px;
-        border-radius: 4px;
-        background-color: transparent;
-        font-size: 0.9rem;
-        margin: 0;
+      #close-btn {
+        margin-left: auto;
         cursor: pointer;
-        transition: background-color 0.3s;
+      }
+    }
+
+    #status-dot {
+      width: 7px;
+      /* Adjust size as needed */
+      height: 7px;
+      background-color: #ff0033;
+      /* Green color */
+      border-radius: 50%;
+      /* Makes it circular */
+      display: inline-block;
+      /* Ensures it behaves like a dot */
+      box-shadow: 0 0 4px #ff0033;
+      /* Optional: Adds a glow effect */
+    }
+
+    h1 {
+      font-size: 1.15rem;
+      margin: 0;
+      padding: 0;
+    }
+
+    p {
+      font-size: 1rem;
+      margin: 10px 0;
+    }
+
+    #time-remaining {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      font-family: "Roboto Slab", monospace;
+      font-weight: 500;
+      font-size: 2.5rem;
+      color: whitesmoke;
+      position: relative;
+      align-items: center;
+    }
+
+    #buttons {
+      display: flex;
+      margin: 0 -10px -10px -10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    a {
+      font-size: 0.9rem;
+      color: #ffcc00;
+      /* Yellow for link */
+      text-decoration: none;
+      transition: color 0.3s;
+      padding: 5px 10px;
+      margin: 0;
+    }
+
+    a:hover {
+      color: #ff9900;
+      /* Slightly darker yellow on hover */
+    }
+
+    .icon-button-container {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      /* Space between buttons */
+    }
+
+    .circle-button {
+      width: 45px;
+      /* Button size */
+      height: 45px;
+      border: none;
+      border-radius: 50%;
+      /* Makes the button circular */
+
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      /* Subtle shadow */
+      color: white;
+
+      i {
+        font-size: 24px;
+        /* Icon size */
+      }
+    }
+
+    .circle-button:disabled {
+      background-color: #80c894;
+      /* Active-looking green */
+      cursor: not-allowed;
+      /* Prevent interaction */
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+      /* Shadow remains */
+      opacity: 1;
+      /* Full opacity to appear active */
+      animation: move-border 2s linear infinite;
+    }
+
+    @keyframes move-border {
+      0% {
+        border: 1px solid #3a3b3e;
+        /* Subtle border color */
+        box-shadow: 0 0 2px rgba(255, 255, 255, 0.2);
+        /* Subtle glow effect */
       }
 
-      a {
-        font-size: 0.9rem;
-        color: #ffcc00; /* Yellow for link */
-        text-decoration: none;
-        transition: color 0.3s;
-        padding: 5px 10px;
-        margin: 0;
+      50% {
+        border: 1px solid #3a3b3e;
+        /* Border stays the same color */
+        box-shadow: 0 0 2px #80c894;
+        /* Soft green glow */
       }
 
-      a:hover {
-        color: #ff9900; /* Slightly darker yellow on hover */
+      100% {
+        border: 1px solid #3a3b3e;
+        /* Border remains subtle */
+        box-shadow: 0 0 2px rgba(255, 255, 255, 0.2);
+        /* Soft glow returns */
       }
-    </style>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap"
-      rel="stylesheet"
-    />
-  </head>
-  <body>
-    <div id="popup">
-      <h1>YouTube Tracker/Limiter</h1>
-      <p>Time Remaining: <span id="time-remaining">00:00</span></p>
-      <div id="buttons">
-        <button id="override-btn">Override</button>
-        <a href="options.html">Settings</a>
-      </div>
+    }
+
+    .circle-button-primary {
+      border-radius: 50%;
+      /* Makes the button circular */
+      background-color: #657ff1;
+      /* Light gray background */
+    }
+
+    .circle-button-secondary {
+      background-color: transparent;
+      border: 1.5px solid #3a3b3e;
+    }
+
+    .circle-button:not(:disabled):active {
+      transform: scale(0.95);
+      /* Slight shrink on click */
+    }
+
+
+    .material-icons {
+      font-size: 24px;
+      /* Icon size */
+      color: #333;
+      /* Icon color */
+    }
+
+    .material-symbols-pauses {
+      font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+    }
+
+    .blinking {
+      animation: subtle-blink 2s infinite ease-in-out;
+      text-decoration: line-through;
+    }
+
+    .fancy-text {
+      font-family: "Roboto Condensed", sans-serif;
+      font-size: 1.1rem;
+      font-weight: 200;
+      color: #8b8b8d;
+      /* Tomato color for contrast */
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+      display: none;
+    }
+
+    /* When overriding time, show the fancy text */
+    #time-remaining.override>.fancy-text {
+      opacity: 1;
+      /* Make fancy text visible */
+      display: block;
+    }
+
+    @keyframes subtle-blink {
+
+      0%,
+      100% {
+        opacity: 1;
+        /* Fully visible */
+      }
+
+      50% {
+        opacity: 0.3;
+        /* Slightly faded */
+      }
+    }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap"
+    rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&family=Roboto+Mono:ital,wght@0,100..700;1,100..700&family=Roboto+Slab:wght@100..900&family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap"
+    rel="stylesheet" />
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+    integrity="sha384-tViUnnbYAV00FLIhhi3v/dWt3Jxw4gZQcNoSCxCIFNJVCx7/D55/wXsrNIRANwdD" crossorigin="anonymous" />
+</head>
+
+<body>
+  <div id="popup">
+    <div class="status-container">
+      <span id="status-dot"></span>
+      <h1>YouTube Tracker & Limiter</h1>
+      <span id="close-btn"><i class="bi bi-x-circle"></i></span>
     </div>
-    <script src="popup.js"></script>
-  </body>
+
+    <p>
+    <div id="time-remaining"><span class="time">00:00</span><span class="fancy-text">Overridden for ~10 minutes</span>
+    </div>
+
+    </p>
+    <div class="icon-button-container">
+      <button class="circle-button circle-button-primary" id="override-btn">
+        <i class="bi bi-pause-fill"></i>
+      </button>
+      <button class="circle-button circle-button-secondary" id="settings-btn">
+        <i class="bi bi-gear-fill"></i>
+      </button>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+
 </html>

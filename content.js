@@ -1,28 +1,12 @@
-// function handleVisibilityChange() {
-//   const isVisible =
-//     document.visibilityState === "visible" && document.hidden !== true;
-//   chrome.runtime.sendMessage({ action: "updateVisibility", isVisible });
-// }
-
-// // Listen for visibility changes
-// document.addEventListener("visibilitychange", handleVisibilityChange);
-
-// // Notify the background script of the initial visibility state
-// chrome.runtime.sendMessage({
-//   action: "updateVisibility",
-//   isVisible: document.visibilityState === "visible",
-// });
-
 function handleVisibilityChange() {
   const isVisible =
     document.visibilityState === "visible" && document.hidden !== true;
 
   console.log("handleVisibilityChange:", isVisible);
 
-  // Send tabId along with the visibility state
   chrome.runtime.sendMessage({
     action: "updateVisibility",
-    isVisible, // Using tabId to track the active tab
+    isVisible,
   });
 }
 

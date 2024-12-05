@@ -74,6 +74,7 @@ function updateBadge() {
 function startTimer() {
   if (timerInterval) {
     console.log("Timer already running");
+    chrome.runtime.sendMessage({ action: "resumeTimer" });
     return;
   }
   if (!isOverrideActive) {
@@ -84,7 +85,7 @@ function startTimer() {
   timerInterval = setInterval(() => {
     if (remainingTime > 0 && !isOverrideActive && !isPaused) {
       remainingTime--;
-      chrome.storage.local.set({ remainingTime }); // Save remaining time during each tick
+      chrome.storage.local.set({ remainingTime, isPaused: false });
       updateBadge();
     } else if (remainingTime === 0 && !isOverrideActive) {
       clearInterval(timerInterval);
@@ -93,6 +94,7 @@ function startTimer() {
       redirectToBlockingPage();
     }
   }, 1000);
+  chrome.storage.local.set({ isPaused: false });
 }
 
 /**
@@ -121,6 +123,7 @@ function stopTimer() {
   clearInterval(timerInterval);
   timerInterval = null;
   console.log("Timer stopped");
+  chrome.storage.local.set({ isPaused: true });
 }
 
 /**
@@ -214,16 +217,6 @@ function updateAlarm(forceUpdate = false) {
 // Message listener for communication between background and other components (popup, content scripts)
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.action) {
-    case "pauseTimer":
-      console.log("Pausing timer...");
-      isPaused = true;
-      break;
-
-    case "resumeTimer":
-      console.log("Resuming timer...");
-      isPaused = false;
-      break;
-
     case "resetTimer":
       console.log("Resetting timer...");
       resetTimer();
@@ -380,6 +373,11 @@ chrome.runtime.onStartup.addListener(() => {
 
     // Reschedule the alarm
     updateAlarm();
+  });
+
+  chrome.storage.local.set({
+    isPaused: undefined,
+    isOverrideActive: undefined,
   });
 });
 
