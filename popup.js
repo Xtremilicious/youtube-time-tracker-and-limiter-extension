@@ -30,6 +30,25 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }, 1000);
 
+  //Tracking Stuff
+  chrome.storage.local.get(["timeTracking"], (data) => {
+    const timeTracking = data.timeTracking || {};
+    const totalTimeToday = timeTracking.today;
+    document
+      .getElementById("today-total-time")
+      .querySelector(".total-time").textContent = formatTime(totalTimeToday);
+  });
+
+  setInterval(function () {
+    chrome.storage.local.get(["timeTracking"], (data) => {
+      const timeTracking = data.timeTracking || {};
+      const totalTimeToday = timeTracking.today;
+      document
+        .getElementById("today-total-time")
+        .querySelector(".total-time").textContent = formatTime(totalTimeToday);
+    });
+  }, 1000);
+
   // Handle override button click
   document.getElementById("override-btn").addEventListener("click", () => {
     console.log("Override button clicked");
@@ -88,35 +107,38 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Function to update the status dot based on isPaused state
   function updateStatusDot(isPaused = true, isOverrideActive = false) {
-    const statusDot = document.getElementById("status-dot");
+    chrome.storage.local.get(["overrideLimit"], (data) => {
+      const statusDot = document.getElementById("status-dot");
 
-    // Update the status dot color
-    if (isPaused || isOverrideActive) {
-      statusDot.style.backgroundColor = "#ff0033"; // Red when paused or override active
-      statusDot.style.boxShadow = "0 0 4px #ff0033"; // Optional: add a glow effect
-    } else {
-      statusDot.style.backgroundColor = "#80c894"; // Green when running and override is inactive
-      statusDot.style.boxShadow = "0 0 4px #80c894"; // Optional: add a glow effect
-    }
+      // Update the status dot color
+      if (isPaused || isOverrideActive) {
+        statusDot.style.backgroundColor = "#ff0033"; // Red when paused or override active
+        statusDot.style.boxShadow = "0 0 4px #ff0033"; // Optional: add a glow effect
+      } else {
+        statusDot.style.backgroundColor = "#80c894"; // Green when running and override is inactive
+        statusDot.style.boxShadow = "0 0 4px #80c894"; // Optional: add a glow effect
+      }
 
-    // Handle the override button state based on isOverrideActive
-    const overrideBtn = document.getElementById("override-btn");
-    const timeRemainingElement = document.getElementById("time-remaining");
-    const timeElement = timeRemainingElement.querySelector(".time");
-    const fancyTextElement = timeRemainingElement.querySelector(".fancy-text");
+      // Handle the override button state based on isOverrideActive
+      const overrideBtn = document.getElementById("override-btn");
+      const timeRemainingElement = document.getElementById("time-remaining");
+      const timeElement = timeRemainingElement.querySelector(".time");
+      const fancyTextElement =
+        timeRemainingElement.querySelector(".fancy-text");
 
-    if (isOverrideActive) {
-      // If override is active, disable the override button
-      overrideBtn.disabled = true;
-      timeElement.classList.add("blinking");
-      timeRemainingElement.classList.add("override");
-      fancyTextElement.textContent = `Overridden for ~${data.overrideLimit} minutes`;
-    } else {
-      // If override is inactive, enable the override button and reset UI
-      overrideBtn.disabled = false;
-      timeElement.classList.remove("blinking");
-      timeRemainingElement.classList.remove("override");
-    }
+      if (isOverrideActive) {
+        // If override is active, disable the override button
+        overrideBtn.disabled = true;
+        timeElement.classList.add("blinking");
+        timeRemainingElement.classList.add("override");
+        fancyTextElement.textContent = `Overridden for ~${data.overrideLimit} minutes`;
+      } else {
+        // If override is inactive, enable the override button and reset UI
+        overrideBtn.disabled = false;
+        timeElement.classList.remove("blinking");
+        timeRemainingElement.classList.remove("override");
+      }
+    });
   }
 
   // Listen for changes in chrome storage
@@ -150,4 +172,19 @@ document.addEventListener("DOMContentLoaded", () => {
   chrome.storage.local.get(["isPaused", "isOverrideActive"], (data) => {
     updateStatusDot(data.isPaused, data.isOverrideActive);
   });
+
+  // Function to format and display the current date
+  function showCurrentDateDay() {
+    const dateElement = document.getElementById("current-date");
+    const currentDate = new Date();
+    const options = { weekday: "short", month: "short", day: "numeric" };
+    const formattedDate = currentDate.toLocaleDateString("en-US", options);
+    dateElement.textContent = formattedDate;
+  }
+
+  // Initial call to display the date
+  showCurrentDateDay();
+
+  // Update the date every second
+  setInterval(showCurrentDateDay, 1000);
 });

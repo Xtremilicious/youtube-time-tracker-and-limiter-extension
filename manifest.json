@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "YouTube Time Tracker and Limiter",
-  "version": "0.2.3",
+  "version": "0.3.1",
   "permissions": ["tabs", "storage", "alarms", "activeTab", "notifications"],
   "background": {
     "scripts": ["background.js"],
@@ -9,16 +9,16 @@
   },
   "browser_action": {
     "default_popup": "popup.html",
-    "default_icon": "assets/icon.png"
+    "default_icon": "assets/icons/icon.png"
   },
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true
   },
   "icons": {
-    "16": "assets/icon-16.png",
-    "48": "assets/icon-48.png",
-    "128": "assets/icon-128.png"
+    "16": "assets/icons/icon-16.png",
+    "48": "assets/icons/icon-48.png",
+    "128": "assets/icons/icon-128.png"
   },
   "content_scripts": [
     {

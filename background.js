@@ -9,6 +9,11 @@ let overrideSetTimout = null; // Timeout for override duration
 let isYouTubeTab = false; // Flag to track if the active tab is YouTube
 let isYouTubeVisible = false; // Flag to track if YouTube is visible in the active tab
 
+//Tracking Stuff
+let trackerTimerInterval = null;
+let totalSecondsWatched = 0;
+let timeTracking = {};
+
 /**
  * Load settings from local storage and set defaults if necessary.
  * @param {Function} callback - A callback function to execute once settings are loaded.
@@ -28,6 +33,17 @@ function loadDefaultSettings(callback) {
     remainingTime: 30 * 60, // Default to 30 minutes
     pauseOnMinimize: true, // Default to pause on minimize
     overrideLimit: 10, // Default override duration in minutes
+    timeTracking: {
+      currentYear: 0,
+      currentMonth: 0,
+      currentWeek: 0,
+      today: 0,
+      previousYear: 0,
+      previousMonth: 0,
+      previousWeek: 0,
+      yesterday: 0,
+      totalTimeWatched: 0,
+    },
   };
 
   // Load daily limits from storage or set defaults
@@ -45,6 +61,24 @@ function loadDefaultSettings(callback) {
       if (callback) callback(data);
       updateAlarm();
     });
+  });
+
+  //Tracking Stuff
+  chrome.storage.local.get("timeTracking", (data) => {
+    const tracking = data.timeTracking || {};
+    timeTracking = tracking;
+
+    if (
+      tracking.today === undefined ||
+      tracking.totalTimeWatched === undefined ||
+      tracking.currentYear === undefined ||
+      tracking.currentMonth === undefined ||
+      tracking.currentWeek === undefined
+    ) {
+      timeTracking = defaultSettings.timeTracking;
+      chrome.storage.local.set({ timeTracking: defaultSettings.timeTracking });
+    }
+    resetDailyTracking();
   });
 }
 
@@ -72,29 +106,119 @@ function updateBadge() {
  * Start the timer, decrementing remaining time every second.
  */
 function startTimer() {
-  if (timerInterval) {
-    console.log("Timer already running");
-    chrome.runtime.sendMessage({ action: "resumeTimer" });
-    return;
-  }
+  chrome.runtime.sendMessage({ action: "resumeTimer" });
   if (!isOverrideActive) {
     chrome.storage.local.set({ isOverrideActive: false });
   }
 
-  console.log("Starting the timer");
-  timerInterval = setInterval(() => {
-    if (remainingTime > 0 && !isOverrideActive && !isPaused) {
-      remainingTime--;
-      chrome.storage.local.set({ remainingTime, isPaused: false });
-      updateBadge();
-    } else if (remainingTime === 0 && !isOverrideActive) {
-      clearInterval(timerInterval);
-      timerInterval = null;
-      notifyTimeUp();
-      redirectToBlockingPage();
+  if (!timerInterval) {
+    console.log("Starting the timer");
+    timerInterval = setInterval(() => {
+      if (remainingTime > 0 && !isOverrideActive && !isPaused) {
+        remainingTime--;
+        chrome.storage.local.set({ remainingTime, isPaused: false });
+        updateBadge();
+      } else if (remainingTime === 0 && !isOverrideActive) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        notifyTimeUp();
+        redirectToBlockingPage();
+      }
+    }, 1000);
+    chrome.storage.local.set({ isPaused: false });
+  }
+
+  //Tracking Stuff
+  if (!trackerTimerInterval) {
+    trackerTimerInterval = setInterval(() => {
+      totalSecondsWatched += 1;
+      updateTimeTracking(1);
+
+      console.log(`Time watched today: ${formatTime(timeTracking.today)}`);
+    }, 1000);
+  }
+}
+
+// Format time for display (HH:MM:SS)
+function formatTime(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return [h, m, s].map((v) => v.toString().padStart(2, "0")).join(":");
+}
+
+function resetDailyTracking() {
+  console.log("Resetting daily tracking...");
+  const now = new Date();
+  const todayLocalDate = now.toLocaleDateString(); // Local date in string format
+
+  chrome.storage.local.get(["lastTrackedDate", "timeTracking"], (result) => {
+    const lastTrackedDate = result.lastTrackedDate;
+    const localTimeTracking = result.timeTracking;
+
+    if (lastTrackedDate !== todayLocalDate) {
+      // Update previous day data
+      timeTracking.yesterday = timeTracking.today;
+      timeTracking.today = 0;
+
+      // Check for week transition
+      const lastTrackedDateObj = lastTrackedDate
+        ? new Date(lastTrackedDate)
+        : now;
+      const isNewWeek =
+        now.getDay() === 0 || // Sunday is the start of a new week
+        now - lastTrackedDateObj > 7 * 24 * 60 * 60 * 1000; // More than a week difference
+      if (isNewWeek) {
+        timeTracking.previousWeek = timeTracking.currentWeek;
+        timeTracking.currentWeek = 0;
+      }
+
+      // Check for month transition
+      if (now.getMonth() !== lastTrackedDateObj.getMonth()) {
+        timeTracking.previousMonth = timeTracking.currentMonth;
+        timeTracking.currentMonth = 0;
+      }
+
+      // Check for year transition
+      if (now.getFullYear() !== lastTrackedDateObj.getFullYear()) {
+        timeTracking.previousYear = timeTracking.currentYear;
+        timeTracking.currentYear = 0;
+      }
+
+      // Save updated data to local storage
+      chrome.storage.local.set({
+        lastTrackedDate: todayLocalDate, // Save local date
+        timeTracking,
+      });
+
+      timeTracking = localTimeTracking;
     }
-  }, 1000);
-  chrome.storage.local.set({ isPaused: false });
+  });
+}
+
+// Function to update the timeTracking object every second
+function updateTimeTracking(seconds = 1) {
+  console.log("Updating time tracking...");
+  resetDailyTracking();
+
+  timeTracking.today += seconds;
+  timeTracking.totalTimeWatched += seconds;
+
+  const now = new Date();
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const weekStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - now.getDay()
+  );
+
+  // Update the time spent in the current year, month, and week
+  if (now >= yearStart) timeTracking.currentYear += seconds;
+  if (now >= monthStart) timeTracking.currentMonth += seconds;
+  if (now >= weekStart) timeTracking.currentWeek += seconds;
+
+  chrome.storage.local.set({ timeTracking });
 }
 
 /**
@@ -124,6 +248,12 @@ function stopTimer() {
   timerInterval = null;
   console.log("Timer stopped");
   chrome.storage.local.set({ isPaused: true });
+
+  //Tracking Stuff
+  if (trackerTimerInterval) {
+    clearInterval(trackerTimerInterval);
+    trackerTimerInterval = null;
+  }
 }
 
 /**
@@ -315,6 +445,9 @@ chrome.runtime.onInstalled.addListener((details) => {
     });
   }
   loadDefaultSettings();
+  chrome.storage.local.set({
+    installedAt: new Date().toISOString().split("T")[0],
+  });
 });
 
 chrome.runtime.onStartup.addListener(() => {
@@ -378,6 +511,12 @@ chrome.runtime.onStartup.addListener(() => {
   chrome.storage.local.set({
     isPaused: undefined,
     isOverrideActive: undefined,
+  });
+
+  //Tracking Stuff
+  chrome.storage.local.get("timeTracking", (data) => {
+    timeTracking = data.timeTracking;
+    resetDailyTracking();
   });
 });
 
