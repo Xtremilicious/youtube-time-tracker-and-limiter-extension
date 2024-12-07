@@ -1,4 +1,26 @@
 document.addEventListener("DOMContentLoaded", () => {
+  // Function to display the toast
+  function showToast(message) {
+    if (document.getElementById("toast"))
+      document.getElementById("toast").remove();
+    const toast = document.createElement("div");
+    toast.id = "toast";
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // Show toast with animation
+    setTimeout(() => {
+      toast.style.display = "block";
+      toast.style.opacity = 1;
+    }, 100);
+
+    // Hide toast after 3 seconds
+    setTimeout(() => {
+      toast.style.opacity = 0;
+      setTimeout(() => toast.remove(), 500); // Remove after fade out
+    }, 3000);
+  }
+
   chrome.storage.local.get(
     ["dailyLimits", "resetTime", "pauseOnMinimize", "overrideLimit"],
     (data) => {
@@ -19,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
         "Sunday",
       ];
 
-      days.forEach((day) => {
+      days.forEach((day, index) => {
         // Create the label element
         const label = document.createElement("label");
         label.textContent = day;
@@ -35,7 +57,17 @@ document.addEventListener("DOMContentLoaded", () => {
         const container = document.createElement("div");
         container.appendChild(label);
         container.appendChild(input);
-        document.getElementById("daily-limits").appendChild(container);
+        container.style.width = "45%";
+        if (index != days.length - 1) {
+          container.style.marginBottom = "1rem";
+        }
+        // Get the reference element (save-override-limit button)
+        const saveButton = document.getElementById(
+          "save-daily-limits-container"
+        );
+        document
+          .getElementById("daily-limits")
+          .insertBefore(container, saveButton);
       });
     }
   );
@@ -48,6 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
       newResetTime: resetTime,
     });
     console.log("Reset Time saved:", resetTime);
+    showToast(`Reset Time saved: ${resetTime}`);
   });
 
   // Pause on Minimize Change Handler
@@ -70,6 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
       chrome.storage.local.set({ overrideLimit });
       chrome.runtime.sendMessage({ action: "saveOverrideLimit" });
       console.log("Override Limit saved:", overrideLimit);
+      showToast(`Override Limit saved: ${overrideLimit} minutes`);
     });
 
   document.getElementById("save-daily-limits").addEventListener("click", () => {
@@ -81,5 +115,6 @@ document.addEventListener("DOMContentLoaded", () => {
     chrome.storage.local.set({ dailyLimits });
     chrome.runtime.sendMessage({ action: "saveDailyLimit" });
     console.log("Daily Limits saved:", dailyLimits);
+    showToast(`Daily Limits saved`);
   });
 });

@@ -111,7 +111,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const statusDot = document.getElementById("status-dot");
 
       // Update the status dot color
-      if (isPaused || isOverrideActive) {
+      if (isPaused) {
         statusDot.style.backgroundColor = "#ff0033"; // Red when paused or override active
         statusDot.style.boxShadow = "0 0 4px #ff0033"; // Optional: add a glow effect
       } else {
@@ -153,19 +153,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (changes.isOverrideActive) {
         updateStatusDot(
-          changes.isPaused ? changes.isPaused.newValue : false,
+          changes.isPaused ? changes.isPaused.newValue : true,
           changes.isOverrideActive.newValue
         );
       }
     }
-  });
-
-  // Handle override button click to toggle pause state and update the dot
-  document.getElementById("override-btn").addEventListener("click", () => {
-    chrome.storage.local.get("isPaused", (data) => {
-      const newState = !data.isPaused; // Toggle the pause state
-      chrome.storage.local.set({ isPaused: newState });
-    });
   });
 
   // Initial call to set the status dot color based on the current state
@@ -187,4 +179,145 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Update the date every second
   setInterval(showCurrentDateDay, 1000);
+
+  //Time Tracking Stuff
+  // Select the details element
+  const detailsToggle = document.getElementById("time-tracker-toggle");
+  const toggleIcon = document.getElementById("toggle-icon");
+  const toggleText = document.getElementById("toggle-text");
+
+  // Listen for toggle events
+  detailsToggle.addEventListener("toggle", () => {
+    if (detailsToggle.open) {
+      // If details is open
+      toggleIcon.className = "bi bi-arrow-bar-up"; // Change icon
+      toggleText.textContent = "Hide Usage Insights"; // Change text
+    } else {
+      // If details is closed
+      toggleIcon.className = "bi bi-arrow-bar-down"; // Change icon
+      toggleText.textContent = "Show Usage Insights"; // Change text
+    }
+  });
+
+  // Function to format time with singular/plural handling, excluding seconds
+  function formatTimeUsage(totalSeconds) {
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    const pluralize = (value, unit) =>
+      value > 0 ? `${value} ${unit}${value > 1 ? "s" : ""}` : "";
+
+    // If time is less than 1 minute, include seconds; otherwise, exclude seconds
+    if (totalSeconds < 60) {
+      return `${seconds} sec`;
+    }
+
+    return [
+      pluralize(days, "day"),
+      pluralize(hours, "hour"),
+      pluralize(minutes, "min"),
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  // Function to calculate percentage change and return icon
+  function getPercentageChange(current, previous) {
+    if (!previous) return `<i class="bi bi-dash"></i>`; // No previous value
+
+    const change = ((current - previous) / previous) * 100;
+
+    // Set a limit for the percentage change
+    const maxChange = 1000; // Maximum percentage change limit
+    const cappedChange =
+      Math.abs(change) > maxChange ? maxChange : Math.abs(change);
+
+    return change > 0
+      ? `<span class="metric-negative">${
+          Math.abs(change) > maxChange ? ">" : "+"
+        }${cappedChange.toFixed(
+          1
+        )}%</span><i class="bi bi-caret-up-fill metric-negative"></i>`
+      : `<span class="metric-positive">${
+          Math.abs(change) > maxChange ? ">" : "-"
+        }${cappedChange.toFixed(
+          1
+        )}%</span><i class="bi bi-caret-down-fill metric-positive"></i>`;
+  }
+
+  // Fetch and update time tracking data for day, week, and year
+  function updateTimeTracking() {
+    chrome.storage.local.get(["timeTracking"], (data) => {
+      const timeTracking = data.timeTracking || {};
+
+      console.log(timeTracking);
+
+      // Update "Today" section
+      const todayTime = formatTimeUsage(timeTracking.today);
+      const todayChange = getPercentageChange(
+        timeTracking.today,
+        timeTracking.yesterday
+      );
+      setElementContent("time-tracker-day-time", todayTime);
+      setElementContent("time-tracker-day-change", todayChange);
+
+      // Update "This week" section
+      const weekTime = formatTimeUsage(timeTracking.currentWeek);
+      const weekChange = getPercentageChange(
+        timeTracking.currentWeek,
+        timeTracking.previousWeek
+      );
+      setElementContent("time-tracker-week-time", weekTime);
+      setElementContent("time-tracker-week-change", weekChange);
+
+      // Update "This month" section
+      const monthTime = formatTimeUsage(timeTracking.currentMonth);
+      const monthChange = getPercentageChange(
+        timeTracking.currentMonth,
+        timeTracking.previousMonth
+      );
+      setElementContent("time-tracker-month-time", monthTime);
+      setElementContent("time-tracker-month-change", monthChange);
+
+      // Update "This year" section
+      const yearTime = formatTimeUsage(timeTracking.currentYear);
+      const yearChange = getPercentageChange(
+        timeTracking.currentYear,
+        timeTracking.previousYear
+      );
+      setElementContent("time-tracker-year-time", yearTime);
+      setElementContent("time-tracker-year-change", yearChange);
+    });
+  }
+
+  // Helper function to set content safely
+  function setElementContent(elementId, htmlContent) {
+    const element = document.getElementById(elementId);
+
+    // Clear existing content
+    while (element.firstChild) {
+      element.removeChild(element.firstChild);
+    }
+
+    // Create new content nodes
+    const fragment = document.createDocumentFragment();
+    const parser = new DOMParser();
+    const parsedHTML = parser.parseFromString(htmlContent, "text/html");
+
+    // Append child nodes to the fragment
+    Array.from(parsedHTML.body.childNodes).forEach((node) => {
+      fragment.appendChild(node);
+    });
+
+    // Append the fragment to the element
+    element.appendChild(fragment);
+  }
+
+  // Initial call to set the time tracking data
+  updateTimeTracking();
+
+  // Update the data every minute (60000 milliseconds)
+  setInterval(updateTimeTracking, 1000);
 });

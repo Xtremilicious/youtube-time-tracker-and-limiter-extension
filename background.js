@@ -106,7 +106,6 @@ function updateBadge() {
  * Start the timer, decrementing remaining time every second.
  */
 function startTimer() {
-  chrome.runtime.sendMessage({ action: "resumeTimer" });
   if (!isOverrideActive) {
     chrome.storage.local.set({ isOverrideActive: false });
   }
@@ -395,6 +394,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       resetTimer();
       break;
 
+    case "startTimer":
+      console.log("Starting timer...");
+      startTimer();
+      break;
+
+    case "pauseTimer":
+      console.log("Pausing timer...");
+      stopTimer();
+
     case "getRemainingTime":
       sendResponse({ time: remainingTime });
       break;
@@ -458,8 +466,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       break;
   }
-
-  return true; // Indicates async response
 });
 
 // Load remaining time from local storage on startup
@@ -571,6 +577,7 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
     if (isYouTubeTab && isYouTubeVisible) {
       console.log("YouTube tab activated. Resuming timer...");
       startTimer();
+      console.log(activeTabId);
     } else {
       console.log("Non-YouTube tab activated. Stopping timer...");
       stopTimer();

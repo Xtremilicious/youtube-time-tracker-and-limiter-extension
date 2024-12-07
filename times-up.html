@@ -3,11 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Time Up!</title>
+    <title>Time's Up!</title>
     <style>
+      /* Global Styles */
       body {
-        font-family: Arial, sans-serif;
-        background-color: #181818;
+        font-family: "Roboto", sans-serif;
+        font-weight: 400;
+        background: radial-gradient(
+          circle,
+          rgba(20, 20, 20, 1) 0%,
+          rgba(0, 0, 0, 1) 100%
+        );
         color: white;
         display: flex;
         justify-content: center;
@@ -15,31 +21,178 @@
         height: 100vh;
         margin: 0;
         text-align: center;
+        flex-direction: column;
+        overflow: hidden;
+        animation: fadeIn 1s ease-in-out;
       }
+
+      /* Fade-in Animation for Page Load */
+      @keyframes fadeIn {
+        0% {
+          opacity: 0;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      /* Header */
       h1 {
-        color: #ff0000;
+        color: #ff0033;
+        font-size: 3rem;
+        margin-bottom: 20px;
+        font-family: "Roboto Slab", serif;
+        font-weight: 900;
+        letter-spacing: 2px;
+        text-shadow: 2px 2px 6px rgba(255, 0, 51, 0.7);
+        animation: textGlow 1.5s ease-in-out infinite alternate;
       }
+
+      /* Glowing Text Animation */
+      @keyframes textGlow {
+        0% {
+          color: #ff0033;
+          text-shadow: 0 0 5px #ff0033;
+        }
+        100% {
+          color: #ffcc00;
+          text-shadow: 0 0 5px #ffcc00;
+        }
+      }
+
+      /* YouTube Play/Stop Button Icon */
+      .icon {
+        width: 145px;
+        height: 100px;
+        margin-bottom: 15px;
+        background-color: #ff0033;
+        position: relative;
+        display: inline-block;
+        border-radius: 25px;
+        box-shadow: 0 0 10px rgba(255, 0, 51, 0.8);
+        cursor: pointer;
+        animation: playToStop 2s infinite ease-in-out;
+      }
+
+      /* Play to Stop Icon Transformation */
+      @keyframes playToStop {
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Play Button (Triangle) */
+      .icon::before {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 0;
+        height: 0;
+        border-left: 30px solid whitesmoke;
+        border-top: 20px solid transparent;
+        border-bottom: 20px solid transparent;
+        transition: all 2s ease;
+      }
+
+      /* Stop Button (Square) */
+      .icon.stop::before {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        border: 1px solid whitesmoke;
+        padding: 15px;
+        background-color: whitesmoke;
+        transition: all 2s ease;
+      }
+
+      /* Paragraph */
       p {
         font-size: 1.2rem;
+        max-width: 500px;
+        color: #e0e0e0;
+        margin-bottom: 30px;
+        font-weight: 400;
+        opacity: 0;
+        animation: fadeInText 2s ease-out 1s forwards;
       }
+
+      /* Fade-in Text Animation */
+      @keyframes fadeInText {
+        0% {
+          opacity: 0;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      /* Button Styles */
+      button {
+        background: transparent;
+        color: #ff0033;
+        border: 1px solid #ff0033;
+        padding: 10px 15px;
+        font-size: 1rem;
+        border-radius: 50px;
+        cursor: pointer;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        transition: all 0.3s ease;
+        font-weight: 600;
+      }
+
+      button:hover {
+        transform: scale(1.025);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+      }
+
+      button:active {
+        transform: scale(0.98);
+      }
+
+      /* Link Styles */
       a {
         color: #ffcc00;
         text-decoration: none;
-        font-size: 1rem;
+        font-size: 1.1rem;
         margin-top: 20px;
         display: inline-block;
+        font-weight: 500;
+        transition: color 0.3s ease;
+        margin-left: 10px;
       }
+
       a:hover {
+        color: #fff;
         text-decoration: underline;
       }
+
+      /* Responsive Design */
+      @media (max-width: 500px) {
+        h1 {
+          font-size: 2.2rem;
+        }
+        p {
+          font-size: 1rem;
+        }
+        button {
+          font-size: 1rem;
+          padding: 12px 25px;
+        }
+      }
     </style>
+    <link rel="stylesheet" href="assets/css/fonts.css" />
   </head>
   <body>
     <div>
+      <div class="icon"></div>
       <h1>Time's Up!</h1>
       <p>
-        Your allowed time has expired. Take a break or adjust your limits in the
-        settings.
+        Your allowed time has expired. <br />Take a break or adjust your limits
+        in the settings.
       </p>
       <button id="override-btn">Override</button>
       <a href="options.html">Go to Settings</a>

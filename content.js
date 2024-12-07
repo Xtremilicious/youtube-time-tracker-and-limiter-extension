@@ -2,8 +2,6 @@ function handleVisibilityChange() {
   const isVisible =
     document.visibilityState === "visible" && document.hidden !== true;
 
-  console.log("handleVisibilityChange:", isVisible);
-
   chrome.runtime.sendMessage({
     action: "updateVisibility",
     isVisible,

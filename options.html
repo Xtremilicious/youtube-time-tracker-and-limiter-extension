@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Settings</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css"
+      rel="stylesheet"
+    />
     <style>
       /* General Reset */
       * {
@@ -13,16 +17,17 @@
       }
 
       body {
-        font-family: Arial, sans-serif;
-        background-color: #181818; /* YouTube dark theme */
-        color: #ffffff; /* White text for contrast */
+        font-family: "Roboto", sans-serif;
+        background-color: #181818; /* Dark theme */
+        color: whitesmoke; /* White text for contrast */
         display: flex;
         justify-content: center;
-        align-items: flex-start;
-        height: 100%;
+        height: 100vh;
         width: 100%;
         padding: 1rem;
-        overflow-y: auto; /* Allow scrolling if content overflows */
+        display: flex;
+        align-items: center;
+        overflow: hidden;
       }
 
       /* Settings Container */
@@ -31,17 +36,20 @@
         padding: 1.5rem;
         border-radius: 8px;
         width: 100%;
-        max-width: 480px; /* Adjusted max-width for better fit */
+        max-width: 480px;
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
         text-align: center;
-        overflow-y: auto; /* Scroll if content overflows */
+        overflow: hidden;
+        max-height: 100%;
+        overflow-y: scroll;
+        margin: 25px;
       }
 
       /* Header */
       h1 {
-        color: #ff0033; /* YouTube red */
+        color: whitesmoke; /* White color for header text */
         margin-bottom: 1rem;
-        font-size: 1.8rem; /* Larger font for better visibility */
+        font-size: 1.8rem;
       }
 
       /* Form Labels */
@@ -57,13 +65,13 @@
       input[type="time"],
       input[type="number"],
       input[type="checkbox"] {
-        width: 70%; /* Make inputs smaller to fit on the same line */
+        width: 70%;
         padding: 0.5rem;
         margin-bottom: 1rem;
         border: 1px solid #444;
         border-radius: 4px;
-        background: #282828; /* Input background */
-        color: #ffffff;
+        background: #282828;
+        color: whitesmoke;
       }
 
       input[type="checkbox"] {
@@ -71,28 +79,38 @@
         margin-left: 0.5rem;
         margin-top: 0.5rem;
       }
+      .input-button-container {
+        text-align: left;
+      }
 
       /* Save Buttons */
       button {
-        background-color: #ffcc00; /* YouTube red */
-        color: #000000;
+        background-color: #657ff1;
+        color: whitesmoke;
         border: none;
         padding: 0.5rem 1rem;
         font-size: 0.9rem;
         border-radius: 4px;
         cursor: pointer;
-        transition: background 0.3s ease;
-        width: 25%; /* Adjust button size */
-        margin-left: 1rem; /* Space between input and button */
+        width: auto;
+        margin-left: 1rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
       }
 
-      button:hover {
-        background-color: #cc0000; /* Darker red on hover */
+      .button:active {
+        transform: scale(0.5);
+        /* Slight shrink on click */
+      }
+
+      button i {
+        margin-right: 0.5rem; /* Space between icon and text */
       }
 
       /* Daily Limits Section */
       h2 {
-        color: #ff0033; /* YouTube red for section title */
+        color: whitesmoke; /* White color for section heading */
         margin-bottom: 1rem;
         font-size: 1.4rem;
         text-align: left;
@@ -102,17 +120,27 @@
         display: flex;
         flex-wrap: wrap;
         justify-content: space-between;
-        gap: 1rem; /* Added gap between inputs */
+        gap: 2.5%;
+      }
+
+      #save-daily-limits-container {
+        display: flex;
+        justify-content: flex-start;
+        align-items: flex-end;
+        width: 45%;
+
+        button {
+          margin-left: 0;
+        }
       }
 
       .daily-limit-container input {
-        margin-bottom: 1rem;
         width: 100%;
+        margin-bottom: 0;
       }
 
       .daily-limit-container label {
         width: 100%;
-        margin-bottom: 0.2rem;
         font-size: 0.9rem;
         text-align: left;
       }
@@ -144,8 +172,25 @@
         }
 
         .daily-limit-container input {
-          width: 100%; /* Full width on small screens */
+          width: 100%;
         }
+      }
+
+      /* Toast Styles */
+      #toast {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #80c894;
+        color: whitesmoke;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 1rem;
+        display: none; /* Hidden by default */
+        z-index: 9999;
+        opacity: 0;
+        transition: opacity 0.5s ease;
       }
     </style>
   </head>
@@ -157,7 +202,9 @@
           <label for="reset-time">Reset Time:</label>
           <div class="input-button-container">
             <input type="time" id="reset-time" name="reset-time" />
-            <button type="button" id="save-reset-time">Save</button>
+            <button type="button" id="save-reset-time">
+              <i class="bi bi-floppy-fill"></i> Save
+            </button>
           </div>
         </div>
 
@@ -181,15 +228,21 @@
               name="override-limit"
               min="1"
             />
-            <button type="button" id="save-override-limit">Save</button>
+            <button type="button" id="save-override-limit">
+              <i class="bi bi-floppy-fill"></i> Save
+            </button>
           </div>
         </div>
 
         <h2>Daily Limits</h2>
         <p class="helper-text">Set daily time limits in minutes.</p>
-        <div id="daily-limits" class="daily-limit-container"></div>
-
-        <button id="save-daily-limits" type="button">Save</button>
+        <div id="daily-limits" class="daily-limit-container">
+          <div id="save-daily-limits-container">
+            <button type="button" id="save-daily-limits">
+              <i class="bi bi-floppy-fill"></i> Save
+            </button>
+          </div>
+        </div>
       </form>
     </div>
 

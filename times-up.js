@@ -16,3 +16,12 @@ document.getElementById("override-btn").addEventListener("click", () => {
     });
   });
 });
+
+// Function to toggle play/stop icon
+function toggleIcon() {
+  const icon = document.querySelector(".icon");
+  console.log(icon);
+  icon.classList.toggle("stop");
+}
+
+setInterval(toggleIcon, 2000);

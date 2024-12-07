@@ -1,297 +1,517 @@
 <!DOCTYPE html>
 <html lang="en">
-
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>YouTube Tracker</title>
-  <style>
-    /* General Styles */
-    html {
-      background-color: transparent;
-    }
-
-    body {
-      font-family: "Roboto", sans-serif;
-      font-weight: 400;
-      font-optical-sizing: auto;
-      background-color: #292a2d;
-      /* YouTube's dark theme background */
-      color: #ffffff;
-      /* White text for contrast */
-      margin: 0;
-      padding: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      box-shadow: 0px 10px 15px -3px rgba(0, 0, 0, 0.1);
-    }
-
-    #popup {
-      width: 350px;
-      padding: 15px;
-    }
-
-    .status-container {
-      border: 1.5px solid #3a3b3e;
-      border-radius: 7px;
-      padding: 10px 15px;
-      margin-bottom: 15px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-
-      #close-btn {
-        margin-left: auto;
-        cursor: pointer;
-      }
-    }
-
-    #status-dot {
-      width: 7px;
-      /* Adjust size as needed */
-      height: 7px;
-      background-color: #ff0033;
-      /* Green color */
-      border-radius: 50%;
-      /* Makes it circular */
-      display: inline-block;
-      /* Ensures it behaves like a dot */
-      box-shadow: 0 0 4px #ff0033;
-      /* Optional: Adds a glow effect */
-    }
-
-    h1 {
-      font-size: 1.15rem;
-      margin: 0;
-      padding: 0;
-    }
-
-    p {
-      font-size: 1rem;
-      margin: 10px 0;
-    }
-
-    #time-remaining {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      font-family: "Roboto Slab", monospace;
-      font-weight: 500;
-      font-size: 2.5rem;
-      color: whitesmoke;
-      position: relative;
-      align-items: center;
-    }
-
-    #buttons {
-      display: flex;
-      margin: 0 -10px -10px -10px;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    a {
-      font-size: 0.9rem;
-      color: #ffcc00;
-      /* Yellow for link */
-      text-decoration: none;
-      transition: color 0.3s;
-      padding: 5px 10px;
-      margin: 0;
-    }
-
-    a:hover {
-      color: #ff9900;
-      /* Slightly darker yellow on hover */
-    }
-
-    .icon-button-container {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      /* Space between buttons */
-    }
-
-    .circle-button {
-      width: 45px;
-      /* Button size */
-      height: 45px;
-      border: none;
-      border-radius: 50%;
-      /* Makes the button circular */
-
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      cursor: pointer;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      /* Subtle shadow */
-      color: white;
-
-      i {
-        font-size: 24px;
-        /* Icon size */
-      }
-    }
-
-    .circle-button:disabled {
-      background-color: #80c894;
-      /* Active-looking green */
-      cursor: not-allowed;
-      /* Prevent interaction */
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-      /* Shadow remains */
-      opacity: 1;
-      /* Full opacity to appear active */
-      animation: move-border 2s linear infinite;
-    }
-
-    @keyframes move-border {
-      0% {
-        border: 1px solid #3a3b3e;
-        /* Subtle border color */
-        box-shadow: 0 0 2px rgba(255, 255, 255, 0.2);
-        /* Subtle glow effect */
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YouTube Tracker</title>
+    <style>
+      /* General Styles */
+      html {
+        background-color: transparent;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
       }
 
-      50% {
-        border: 1px solid #3a3b3e;
-        /* Border stays the same color */
-        box-shadow: 0 0 2px #80c894;
-        /* Soft green glow */
+      body {
+        font-family: "Roboto", sans-serif;
+        font-weight: 400;
+        font-optical-sizing: auto;
+        background-color: #292a2d;
+        /* YouTube's dark theme background */
+        color: #ffffff;
+        /* White text for contrast */
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 0px 10px 15px -3px rgba(0, 0, 0, 0.1);
+
+        overflow: hidden;
       }
 
-      100% {
-        border: 1px solid #3a3b3e;
-        /* Border remains subtle */
-        box-shadow: 0 0 2px rgba(255, 255, 255, 0.2);
-        /* Soft glow returns */
-      }
-    }
-
-    .circle-button-primary {
-      border-radius: 50%;
-      /* Makes the button circular */
-      background-color: #657ff1;
-      /* Light gray background */
-    }
-
-    .circle-button-secondary {
-      background-color: transparent;
-      border: 1.5px solid #3a3b3e;
-    }
-
-    .circle-button:not(:disabled):active {
-      transform: scale(0.95);
-      /* Slight shrink on click */
-    }
-
-
-    .material-icons {
-      font-size: 24px;
-      /* Icon size */
-      color: #333;
-      /* Icon color */
-    }
-
-    .material-symbols-pauses {
-      font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
-    }
-
-    .blinking {
-      animation: subtle-blink 2s infinite ease-in-out;
-      text-decoration: line-through;
-    }
-
-    .fancy-text {
-      font-family: "Roboto", sans-serif;
-      font-size: 1.1rem;
-      font-weight: 300;
-      color: #8b8b8d;
-      /* Tomato color for contrast */
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      pointer-events: none;
-      display: none;
-    }
-
-    /* When overriding time, show the fancy text */
-    #time-remaining.override>.fancy-text {
-      opacity: 1;
-      /* Make fancy text visible */
-      display: block;
-    }
-
-    @keyframes subtle-blink {
-
-      0%,
-      100% {
-        opacity: 1;
-        /* Fully visible */
+      #popup {
+        width: 350px;
+        padding: 15px;
       }
 
-      50% {
-        opacity: 0.3;
-        /* Slightly faded */
-      }
-    }
+      .status-container {
+        border: 1.5px solid #3a3b3e;
+        border-radius: 7px;
+        padding: 10px 15px;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
 
-    #today-stats{
-      display: flex;
-      flex-direction: row;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 15px;
-      font-family: "Roboto", sans-serif;
-      font-weight: 400;
-
-      #current-date, #today-total-time{
-        font-size: 1.05rem;
-        color: #919193;
-      }
-
-      #today-total-time{
-        .total-time{
-          color: whitesmoke;
+        #close-btn {
+          margin-left: auto;
+          cursor: pointer;
         }
       }
-    }
-  </style>
-  <link rel="stylesheet" href="assets/css/fonts.css" />
-  <link rel="stylesheet" href="assets/css/bootstrap-icon.css" />
-</head>
 
-<body>
-  <div id="popup">
-    <div class="status-container">
-      <span id="status-dot"></span>
-      <h1>YouTube Tracker & Limiter</h1>
-      <span id="close-btn"><i class="bi bi-x-circle"></i></span>
+      #status-dot {
+        width: 7px;
+        /* Adjust size as needed */
+        height: 7px;
+        background-color: #ff0033;
+        /* Green color */
+        border-radius: 50%;
+        /* Makes it circular */
+        display: inline-block;
+        /* Ensures it behaves like a dot */
+        box-shadow: 0 0 4px #ff0033;
+        /* Optional: Adds a glow effect */
+      }
+
+      h1 {
+        font-size: 1.15rem;
+        margin: 0;
+        padding: 0;
+      }
+
+      p {
+        font-size: 1rem;
+        margin: 10px 0;
+      }
+
+      #time-remaining {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        font-family: "Roboto Slab", monospace;
+        font-weight: 500;
+        font-size: 2.5rem;
+        color: whitesmoke;
+        position: relative;
+        align-items: center;
+      }
+
+      #buttons {
+        display: flex;
+        margin: 0 -10px -10px -10px;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      a {
+        font-size: 0.9rem;
+        color: #ffcc00;
+        /* Yellow for link */
+        text-decoration: none;
+        transition: color 0.3s;
+        padding: 5px 10px;
+        margin: 0;
+      }
+
+      a:hover {
+        color: #ff9900;
+        /* Slightly darker yellow on hover */
+      }
+
+      .icon-button-container {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        /* Space between buttons */
+      }
+
+      .circle-button {
+        width: 45px;
+        /* Button size */
+        height: 45px;
+        border: none;
+        border-radius: 50%;
+        /* Makes the button circular */
+
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        /* Subtle shadow */
+        color: white;
+
+        i {
+          font-size: 24px;
+          /* Icon size */
+        }
+      }
+
+      .circle-button:disabled {
+        background-color: #80c894;
+        /* Active-looking green */
+        cursor: not-allowed;
+        /* Prevent interaction */
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        /* Shadow remains */
+        opacity: 1;
+        /* Full opacity to appear active */
+        animation: move-border 2s linear infinite;
+      }
+
+      @keyframes move-border {
+        0% {
+          border: 1px solid #3a3b3e;
+          /* Subtle border color */
+          box-shadow: 0 0 2px rgba(255, 255, 255, 0.2);
+          /* Subtle glow effect */
+        }
+
+        50% {
+          border: 1px solid #3a3b3e;
+          /* Border stays the same color */
+          box-shadow: 0 0 2px #80c894;
+          /* Soft green glow */
+        }
+
+        100% {
+          border: 1px solid #3a3b3e;
+          /* Border remains subtle */
+          box-shadow: 0 0 2px rgba(255, 255, 255, 0.2);
+          /* Soft glow returns */
+        }
+      }
+
+      .circle-button-primary {
+        border-radius: 50%;
+        /* Makes the button circular */
+        background-color: #657ff1;
+        /* Light gray background */
+      }
+
+      .circle-button-secondary {
+        background-color: transparent;
+        border: 1.5px solid #3a3b3e;
+      }
+
+      .circle-button:not(:disabled):active {
+        transform: scale(0.95);
+        /* Slight shrink on click */
+      }
+
+      .material-icons {
+        font-size: 24px;
+        /* Icon size */
+        color: #333;
+        /* Icon color */
+      }
+
+      .material-symbols-pauses {
+        font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+      }
+
+      .blinking {
+        animation: subtle-blink 2s infinite ease-in-out;
+        text-decoration: line-through;
+      }
+
+      .fancy-text {
+        font-family: "Roboto", sans-serif;
+        font-size: 1.1rem;
+        font-weight: 300;
+        color: #8b8b8d;
+        /* Tomato color for contrast */
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+        display: none;
+        margin-bottom: 10px;
+      }
+
+      /* When overriding time, show the fancy text */
+      #time-remaining.override > .fancy-text {
+        opacity: 1;
+        /* Make fancy text visible */
+        display: block;
+      }
+
+      @keyframes subtle-blink {
+        0%,
+        100% {
+          opacity: 1;
+          /* Fully visible */
+        }
+
+        50% {
+          opacity: 0.3;
+          /* Slightly faded */
+        }
+      }
+
+      #today-stats {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 15px;
+        font-family: "Roboto", sans-serif;
+        font-weight: 400;
+
+        #current-date,
+        #today-total-time {
+          font-size: 1.05rem;
+          color: #919193;
+        }
+
+        #today-total-time {
+          .total-time {
+            color: whitesmoke;
+          }
+        }
+      }
+
+      #time-tracker-collapsible {
+        margin-top: 25px;
+
+        details {
+          summary {
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.9rem;
+            font-weight: 300;
+            color: whitesmoke;
+          }
+        }
+
+        details {
+          overflow: hidden;
+          transition: all 0.5s ease-in-out;
+        }
+
+        details[open] > div {
+          animation: slideDown 0.5s ease-in-out forwards;
+        }
+
+        details:not([open]) > div {
+          animation: slideUp 0.5s ease-in-out forwards;
+        }
+      }
+
+      @keyframes slideDown {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes slideUp {
+        from {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        to {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+      }
+
+      #time-tracker {
+        margin-top: 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+
+        .time-tracker-section {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px 15px;
+          background: rgba(0, 0, 0, 0.13);
+          border-radius: 7px;
+          box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+          backdrop-filter: blur(4.8px);
+          -webkit-backdrop-filter: blur(4.8px);
+        }
+
+        .time-tracker-context,
+        .time-tracker-metric {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          justify-content: center;
+          align-items: flex-start;
+        }
+
+        .time-tracker-metric {
+          align-items: flex-end;
+        }
+
+        .time-tracker-context-title {
+          font-size: 1rem;
+          font-family: "Roboto", sans-serif;
+          font-weight: 500;
+          color: whitesmoke;
+        }
+
+        .time-tracker-context-subtitle {
+          font-size: 0.8rem;
+          color: #919193;
+        }
+
+        .time-tracker-metric-title {
+          font-size: 1rem;
+          font-family: "Roboto", sans-serif;
+          font-weight: 300;
+          color: whitesmoke;
+        }
+
+        .time-tracker-metric-subtitle {
+          font-family: "Roboto", sans-serif;
+          font-size: 0.9rem;
+          color: #919193;
+          display: flex;
+          gap: 5px;
+
+          .metric-positive {
+            color: #80c894;
+          }
+
+          .metric-negative {
+            color: #ff0033;
+          }
+        }
+      }
+    </style>
+    <link rel="stylesheet" href="assets/css/fonts.css" />
+    <link rel="stylesheet" href="assets/css/bootstrap-icon.css" />
+  </head>
+
+  <body>
+    <div id="popup">
+      <div class="status-container">
+        <span id="status-dot"></span>
+        <h1>YouTube Tracker & Limiter</h1>
+        <span id="close-btn"><i class="bi bi-x-circle"></i></span>
+      </div>
+
+      <div id="time-remaining">
+        <span class="time">00:00</span
+        ><span class="fancy-text">Overridden for ~10 minutes</span>
+      </div>
+      <div class="icon-button-container">
+        <button class="circle-button circle-button-primary" id="override-btn">
+          <i class="bi bi-pause-fill"></i>
+        </button>
+        <button class="circle-button circle-button-secondary" id="settings-btn">
+          <i class="bi bi-gear-fill"></i>
+        </button>
+      </div>
+      <div id="today-stats">
+        <span id="current-date"></span>
+        <div id="today-total-time">
+          <span>Total: </span> <span class="total-time">00:00:00</span>
+        </div>
+      </div>
+      <div id="time-tracker-collapsible">
+        <details id="time-tracker-toggle">
+          <summary>
+            <i class="bi bi-arrow-bar-down" id="toggle-icon"></i>
+            <span id="toggle-text">Show Usage Insights</span>
+          </summary>
+          <div id="time-tracker">
+            <div class="time-tracker-section">
+              <div class="time-tracker-context">
+                <div class="time-tracker-context-title">Today</div>
+                <div class="time-tracker-context-subtitle">
+                  vs. Last Active Day
+                </div>
+              </div>
+              <div class="time-tracker-metric">
+                <div
+                  class="time-tracker-metric-title"
+                  id="time-tracker-day-time"
+                >
+                  1hr 2 mins
+                </div>
+                <div
+                  class="time-tracker-metric-subtitle"
+                  id="time-tracker-day-change"
+                >
+                  <span>+69%</span
+                  ><span><i class="bi bi-caret-up-fill"></i></span>
+                </div>
+              </div>
+            </div>
+            <div class="time-tracker-section">
+              <div class="time-tracker-context">
+                <div class="time-tracker-context-title">This week</div>
+                <div class="time-tracker-context-subtitle">vs. Last Week</div>
+              </div>
+              <div class="time-tracker-metric">
+                <div
+                  class="time-tracker-metric-title"
+                  id="time-tracker-week-time"
+                >
+                  1hr 2 mins
+                </div>
+                <div
+                  class="time-tracker-metric-subtitle"
+                  id="time-tracker-week-change"
+                >
+                  <span>+69%</span
+                  ><span><i class="bi bi-caret-up-fill"></i></span>
+                </div>
+              </div>
+            </div>
+            <div class="time-tracker-section">
+              <div class="time-tracker-context">
+                <div class="time-tracker-context-title">This month</div>
+                <div class="time-tracker-context-subtitle">vs. Last Month</div>
+              </div>
+              <div class="time-tracker-metric">
+                <div
+                  class="time-tracker-metric-title"
+                  id="time-tracker-month-time"
+                >
+                  1hr 2 mins
+                </div>
+                <div
+                  class="time-tracker-metric-subtitle"
+                  id="time-tracker-month-change"
+                >
+                  <span>+69%</span
+                  ><span><i class="bi bi-caret-up-fill"></i></span>
+                </div>
+              </div>
+            </div>
+            <div class="time-tracker-section">
+              <div class="time-tracker-context">
+                <div class="time-tracker-context-title">This year</div>
+                <div class="time-tracker-context-subtitle">vs. Last Year</div>
+              </div>
+              <div class="time-tracker-metric">
+                <div
+                  class="time-tracker-metric-title"
+                  id="time-tracker-year-time"
+                >
+                  1hr 2 mins
+                </div>
+                <div
+                  class="time-tracker-metric-subtitle"
+                  id="time-tracker-year-change"
+                >
+                  <span>+69%</span
+                  ><span><i class="bi bi-caret-up-fill"></i></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
     </div>
-
-    <p>
-    <div id="time-remaining"><span class="time">00:00</span><span class="fancy-text">Overridden for ~10 minutes</span>
-    </div>
-
-    </p>
-    <div class="icon-button-container">
-      <button class="circle-button circle-button-primary" id="override-btn">
-        <i class="bi bi-pause-fill"></i>
-      </button>
-      <button class="circle-button circle-button-secondary" id="settings-btn">
-        <i class="bi bi-gear-fill"></i>
-      </button>
-    </div>
-    <div id="today-stats">
-      <span id="current-date"></span>
-      <div id="today-total-time">
-        <span>Total: </span> <span class="total-time">00:00:00</span>
-    </div>
-    
-
-  </div>
-  <script src="popup.js"></script>
-</body>
-
+    <script src="popup.js"></script>
+  </body>
 </html>
