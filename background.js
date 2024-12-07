@@ -148,77 +148,120 @@ function formatTime(seconds) {
 }
 
 function resetDailyTracking() {
-  console.log("Resetting daily tracking...");
-  const now = new Date();
-  const todayLocalDate = now.toLocaleDateString(); // Local date in string format
+  return new Promise((resolve) => {
+    const now = new Date();
 
-  chrome.storage.local.get(["lastTrackedDate", "timeTracking"], (result) => {
-    const lastTrackedDate = result.lastTrackedDate;
-    const localTimeTracking = result.timeTracking;
+    // Create a Date object for today at local midnight (00:00)
+    const todayLocalDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    ); // 00:00:00 local time
 
-    if (lastTrackedDate !== todayLocalDate) {
-      // Update previous day data
-      timeTracking.yesterday = timeTracking.today;
-      timeTracking.today = 0;
-
-      // Check for week transition
-      const lastTrackedDateObj = lastTrackedDate
-        ? new Date(lastTrackedDate)
+    chrome.storage.local.get(["lastTrackedDate", "timeTracking"], (result) => {
+      const lastTrackedDateObj = result.lastTrackedDate
+        ? new Date(result.lastTrackedDate) // Use the full Date-time object
         : now;
-      const isNewWeek =
-        now.getDay() === 0 || // Sunday is the start of a new week
-        now - lastTrackedDateObj > 7 * 24 * 60 * 60 * 1000; // More than a week difference
-      if (isNewWeek) {
-        timeTracking.previousWeek = timeTracking.currentWeek;
-        timeTracking.currentWeek = 0;
+
+      console.log(new Date(result.lastTrackedDate), now);
+
+      // Normalize lastTrackedDate to local midnight (00:00)
+      const lastTrackedDateOnly = new Date(
+        lastTrackedDateObj.getFullYear(),
+        lastTrackedDateObj.getMonth(),
+        lastTrackedDateObj.getDate()
+      );
+
+      // Compare using only the date part
+      if (
+        lastTrackedDateOnly.toLocaleDateString() !==
+        todayLocalDate.toLocaleDateString()
+      ) {
+        const updatedValues = {
+          ...(result.timeTracking ?? {
+            currentYear: 0,
+            currentMonth: 0,
+            currentWeek: 0,
+            today: 0,
+            previousYear: 0,
+            previousMonth: 0,
+            previousWeek: 0,
+            yesterday: 0,
+            totalTimeWatched: 0,
+          }),
+        };
+
+        updatedValues.yesterday = result.timeTracking.today || 0;
+        updatedValues.today = 0;
+
+        // Week, month, and year transitions based on local time
+        if (
+          Math.floor(
+            (todayLocalDate - lastTrackedDateOnly) / (1000 * 60 * 60 * 24)
+          ) >= 7
+        ) {
+          updatedValues.previousWeek = result.timeTracking.currentWeek || 0;
+          updatedValues.currentWeek = 0;
+        }
+        if (todayLocalDate.getMonth() !== lastTrackedDateOnly.getMonth()) {
+          updatedValues.previousMonth = result.timeTracking.currentMonth || 0;
+          updatedValues.currentMonth = 0;
+        }
+        if (
+          todayLocalDate.getFullYear() !== lastTrackedDateOnly.getFullYear()
+        ) {
+          updatedValues.previousYear = result.timeTracking.currentYear || 0;
+          updatedValues.currentYear = 0;
+        }
+
+        // Save updated time tracking and the current timestamp
+        chrome.storage.local.set(
+          { lastTrackedDate: now.toISOString(), timeTracking: updatedValues },
+          () => {
+            resolve(); // Reset completed
+          }
+        );
+      } else {
+        chrome.storage.local.set({ lastTrackedDate: now.toISOString() });
+        resolve(); // No reset needed
       }
-
-      // Check for month transition
-      if (now.getMonth() !== lastTrackedDateObj.getMonth()) {
-        timeTracking.previousMonth = timeTracking.currentMonth;
-        timeTracking.currentMonth = 0;
-      }
-
-      // Check for year transition
-      if (now.getFullYear() !== lastTrackedDateObj.getFullYear()) {
-        timeTracking.previousYear = timeTracking.currentYear;
-        timeTracking.currentYear = 0;
-      }
-
-      // Save updated data to local storage
-      chrome.storage.local.set({
-        lastTrackedDate: todayLocalDate, // Save local date
-        timeTracking,
-      });
-
-      timeTracking = localTimeTracking;
-    }
+    });
   });
 }
 
-// Function to update the timeTracking object every second
+let isResetting = false;
 function updateTimeTracking(seconds = 1) {
   console.log("Updating time tracking...");
-  resetDailyTracking();
 
-  timeTracking.today += seconds;
-  timeTracking.totalTimeWatched += seconds;
+  if (isResetting) return; // Prevent concurrent reset
 
-  const now = new Date();
-  const yearStart = new Date(now.getFullYear(), 0, 1);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const weekStart = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() - now.getDay()
-  );
+  isResetting = true;
 
-  // Update the time spent in the current year, month, and week
-  if (now >= yearStart) timeTracking.currentYear += seconds;
-  if (now >= monthStart) timeTracking.currentMonth += seconds;
-  if (now >= weekStart) timeTracking.currentWeek += seconds;
+  resetDailyTracking().then(() => {
+    chrome.storage.local.get("timeTracking", (result) => {
+      const localTimeTracking = result.timeTracking || {};
 
-  chrome.storage.local.set({ timeTracking });
+      // Update timeTracking values
+      const updatedValues = { ...localTimeTracking };
+      updatedValues.today = (localTimeTracking.today || 0) + seconds;
+      updatedValues.totalTimeWatched =
+        (localTimeTracking.totalTimeWatched || 0) + seconds;
+
+      // Directly update currentYear, currentMonth, currentWeek without comparisons
+      updatedValues.currentYear =
+        (localTimeTracking.currentYear || 0) + seconds;
+      updatedValues.currentMonth =
+        (localTimeTracking.currentMonth || 0) + seconds;
+      updatedValues.currentWeek =
+        (localTimeTracking.currentWeek || 0) + seconds;
+
+      // Save updated values
+      chrome.storage.local.set({ timeTracking: updatedValues }, () => {
+        console.log("Time tracking updated:", updatedValues);
+        isResetting = false;
+      });
+    });
+  });
 }
 
 /**
@@ -537,8 +580,8 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 
 // Listen for tab updates (URL or content changes)
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // Ensure we only process when the tab's URL changes
-  if (changeInfo.url) {
+  // Ensure we only process when the tab's URL changes and it's the active tab
+  if (changeInfo.url && tab.active) {
     const isNowYouTube = changeInfo.url.includes("youtube.com");
     const wasPreviouslyYouTube = isYouTubeTab && tabId === activeTabId;
 
