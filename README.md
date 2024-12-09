@@ -1,5 +1,5 @@
 
-# 📉 YouTube Time Tracker and Limiter
+# 📉 YouTube Time Tracker and Limiter Extension
 
 Take control of your YouTube habits! Say goodbye to endless scrolling and binge-watching. Stay productive by tracking your time and setting limits for a healthier balance.  
 
