@@ -39,8 +39,8 @@ To run this extension locally, follow these steps:
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/Xtremilicious/youTube-time-tracker-limiter.git
-cd youTube-time-tracker-limiter
+git clone https://github.com/Xtremilicious/youtube-time-tracker-and-limiter-extension.git
+cd youtube-time-tracker-and-limiter-extension
 cd extension
 ```
 
