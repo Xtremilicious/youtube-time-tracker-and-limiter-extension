@@ -39,15 +39,15 @@ To run this extension locally, follow these steps:
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/your-username/youTube-time-tracker-limiter.git
+git clone https://github.com/Xtremilicious/youTube-time-tracker-limiter.git
 cd youTube-time-tracker-limiter
+cd extension
 ```
 
 ### 2. Install Dependencies
 
 Make sure you have `node.js` and `npm` installed, then run:
 ```bash
-cd extension
 npm install
 ```
 ### 3. Run the Extension Locally
