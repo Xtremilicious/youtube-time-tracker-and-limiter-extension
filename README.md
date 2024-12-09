@@ -6,6 +6,11 @@ Take control of your YouTube habits! Say goodbye to endless scrolling and binge-
 ---
 Firefox Extension: https://addons.mozilla.org/en-US/firefox/addon/youtube-time-tracker-limiter
 
+<div style="display: flex; justify-content: space-between;">
+  <img src="https://github.com/user-attachments/assets/f91deba1-07cd-495d-be30-249029a104e4" alt="Image 1" style="width: 45%;"/>
+  <img src="https://github.com/user-attachments/assets/13a22ce2-185f-43fa-b06a-d4a216c86ad3" alt="Image 2" style="width: 45%;"/>
+</div>
+
 ---
 
 ## ✨ Features You'll Love
