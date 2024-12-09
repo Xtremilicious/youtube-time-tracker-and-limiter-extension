@@ -1,13 +1,14 @@
 {
   "manifest_version": 2,
   "name": "YouTube Time Tracker and Limiter",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "permissions": ["tabs", "storage", "alarms", "activeTab", "notifications"],
   "background": {
     "scripts": ["background.js"],
     "persistent": true
   },
   "browser_action": {
+    "default_title": "YouTube Time Tracker and Limiter",
     "default_popup": "popup.html",
     "default_icon": "assets/icons/icon.png"
   },

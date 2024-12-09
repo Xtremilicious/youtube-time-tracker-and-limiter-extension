@@ -132,8 +132,6 @@ function startTimer() {
     trackerTimerInterval = setInterval(() => {
       totalSecondsWatched += 1;
       updateTimeTracking(1);
-
-      console.log(`Time watched today: ${formatTime(timeTracking.today)}`);
     }, 1000);
   }
 }
@@ -161,8 +159,6 @@ function resetDailyTracking() {
       const lastTrackedDateObj = result.lastTrackedDate
         ? new Date(result.lastTrackedDate) // Use the full Date-time object
         : now;
-
-      console.log(new Date(result.lastTrackedDate), now);
 
       // Normalize lastTrackedDate to local midnight (00:00)
       const lastTrackedDateOnly = new Date(
@@ -256,7 +252,6 @@ function updateTimeTracking(seconds = 1) {
 
       // Save updated values
       chrome.storage.local.set({ timeTracking: updatedValues }, () => {
-        console.log("Time tracking updated:", updatedValues);
         isResetting = false;
       });
     });
@@ -292,10 +287,8 @@ function stopTimer() {
   chrome.storage.local.set({ isPaused: true });
 
   //Tracking Stuff
-  if (trackerTimerInterval) {
-    clearInterval(trackerTimerInterval);
-    trackerTimerInterval = null;
-  }
+  clearInterval(trackerTimerInterval);
+  trackerTimerInterval = null;
 }
 
 /**
@@ -409,36 +402,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "activateOverride":
       isOverrideActive = true;
-      // Save the override status in chrome storage
-      chrome.storage.local.set({ isOverrideActive: true });
-      overrideSetTimout = setTimeout(() => {
-        isOverrideActive = false;
-        chrome.storage.local.set({ isOverrideActive: false });
-        if (isYouTubeTab && isYouTubeVisible) {
-          startTimer();
-        }
-      }, message.overrideLimit * 60 * 1000); // Override lasts for overrideLimit minutes
+      chrome.storage.local.get(["overrideLimit"], (data) => {
+        // Save the override status in chrome storage
+        chrome.storage.local.set({ isOverrideActive: true });
+        overrideSetTimout = setTimeout(() => {
+          isOverrideActive = false;
+          chrome.storage.local.set({ isOverrideActive: false });
+          if (isYouTubeTab && isYouTubeVisible) {
+            startTimer();
+          }
+        }, data.overrideLimit * 60 * 1000); // Override lasts for overrideLimit minutes
+      });
       break;
 
     case "updateVisibility":
-      const { isVisible } = message;
-      isYouTubeVisible = isVisible;
-      console.log(
-        "pauseOnMinimize:",
-        pauseOnMinimize,
-        "isYouTubeVisible:",
-        isYouTubeVisible
-      );
-
-      if (sender.tab.id === activeTabId) {
-        if (isYouTubeVisible) {
-          console.log("YouTube tab is visible. Resuming timer...");
-          startTimer();
-        } else if (pauseOnMinimize) {
-          console.log("YouTube tab is not visible. Pausing timer...");
-          stopTimer();
+      chrome.storage.local.get(["pauseOnMinimize"], (data) => {
+        const { isVisible } = message;
+        isYouTubeVisible = isVisible;
+        if (sender.tab.id === activeTabId) {
+          if (isYouTubeVisible) {
+            console.log("YouTube tab is visible. Resuming timer...");
+            startTimer();
+          } else if (data.pauseOnMinimize) {
+            console.log("YouTube tab is not visible. Pausing timer...");
+            stopTimer();
+          }
         }
-      }
+      });
       break;
 
     case "saveDailyLimit":
@@ -458,6 +448,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const { pauseState } = message;
       console.log(`Saving pause on minimize state: ${pauseState}`);
       pauseOnMinimize = pauseState;
+      chrome.storage.local.set({ pauseOnMinimize: pauseState });
       break;
     case "saveOverrideLimit":
       overrideSetTimout = setTimeout(() => {

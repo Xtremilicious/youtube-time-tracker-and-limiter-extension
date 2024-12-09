@@ -1,3 +1,8 @@
+/*
+ * YouTube Time Tracker and Limiter
+ * This is unimplemented.
+ */
+
 // content.js
 
 // Function to inject the CSS styles

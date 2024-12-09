@@ -1,34 +1,29 @@
 document.addEventListener("DOMContentLoaded", () => {
-  // Request the initial remaining time when the popup is loaded
-  chrome.runtime.sendMessage(
-    { action: "getRemainingTime" },
-    function (response) {
-      if (response && response.time) {
-        document
-          .getElementById("time-remaining")
-          .querySelector(".time").textContent = formatTime(response.time);
-      } else {
-        document
-          .getElementById("time-remaining")
-          .querySelector(".time").textContent = "00:00";
-      }
+  chrome.storage.local.get("remainingTime", (data) => {
+    if (data.remainingTime !== undefined) {
+      document
+        .getElementById("time-remaining")
+        .querySelector(".time").textContent = formatTime(data.remainingTime);
+    } else {
+      document
+        .getElementById("time-remaining")
+        .querySelector(".time").textContent = "00:00";
     }
-  );
+  });
 
-  // Periodically update the remaining time
   setInterval(function () {
-    chrome.runtime.sendMessage({ action: "getRemainingTime" }, (response) => {
-      if (response && response.time) {
+    chrome.storage.local.get("remainingTime", (data) => {
+      if (data.remainingTime !== undefined) {
         document
           .getElementById("time-remaining")
-          .querySelector(".time").textContent = formatTime(response.time);
+          .querySelector(".time").textContent = formatTime(data.remainingTime);
       } else {
         document
           .getElementById("time-remaining")
           .querySelector(".time").textContent = "00:00";
       }
     });
-  }, 1000);
+  }, 1000); // Update every second
 
   //Tracking Stuff
   chrome.storage.local.get(["timeTracking"], (data) => {
@@ -251,8 +246,6 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateTimeTracking() {
     chrome.storage.local.get(["timeTracking"], (data) => {
       const timeTracking = data.timeTracking || {};
-
-      console.log(timeTracking);
 
       // Update "Today" section
       const todayTime = formatTimeUsage(timeTracking.today);
