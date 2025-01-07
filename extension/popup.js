@@ -1,29 +1,34 @@
 document.addEventListener("DOMContentLoaded", () => {
-  chrome.storage.local.get("remainingTime", (data) => {
-    if (data.remainingTime !== undefined) {
-      document
-        .getElementById("time-remaining")
-        .querySelector(".time").textContent = formatTime(data.remainingTime);
-    } else {
-      document
-        .getElementById("time-remaining")
-        .querySelector(".time").textContent = "00:00";
-    }
-  });
-
-  setInterval(function () {
-    chrome.storage.local.get("remainingTime", (data) => {
-      if (data.remainingTime !== undefined) {
+  // Request the initial remaining time when the popup is loaded
+  chrome.runtime.sendMessage(
+    { action: "getRemainingTime" },
+    function (response) {
+      if (response && response.time) {
         document
           .getElementById("time-remaining")
-          .querySelector(".time").textContent = formatTime(data.remainingTime);
+          .querySelector(".time").textContent = formatTime(response.time);
+      } else {
+        document
+          .getElementById("time-remaining")
+          .querySelector(".time").textContent = "00:00";
+      }
+    }
+  );
+
+  // Periodically update the remaining time
+  setInterval(function () {
+    chrome.runtime.sendMessage({ action: "getRemainingTime" }, (response) => {
+      if (response && response.time) {
+        document
+          .getElementById("time-remaining")
+          .querySelector(".time").textContent = formatTime(response.time);
       } else {
         document
           .getElementById("time-remaining")
           .querySelector(".time").textContent = "00:00";
       }
     });
-  }, 1000); // Update every second
+  }, 1000);
 
   //Tracking Stuff
   chrome.storage.local.get(["timeTracking"], (data) => {
@@ -247,14 +252,17 @@ document.addEventListener("DOMContentLoaded", () => {
     chrome.storage.local.get(["timeTracking"], (data) => {
       const timeTracking = data.timeTracking || {};
 
+      console.log(timeTracking);
+
       // Update "Today" section
       const todayTime = formatTimeUsage(timeTracking.today);
       const todayChange = getPercentageChange(
         timeTracking.today,
         timeTracking.yesterday
       );
-      setElementContent("time-tracker-day-time", todayTime);
-      setElementContent("time-tracker-day-change", todayChange);
+      document.getElementById("time-tracker-day-time").innerHTML = todayTime;
+      document.getElementById("time-tracker-day-change").innerHTML =
+        todayChange;
 
       // Update "This week" section
       const weekTime = formatTimeUsage(timeTracking.currentWeek);
@@ -262,8 +270,9 @@ document.addEventListener("DOMContentLoaded", () => {
         timeTracking.currentWeek,
         timeTracking.previousWeek
       );
-      setElementContent("time-tracker-week-time", weekTime);
-      setElementContent("time-tracker-week-change", weekChange);
+      document.getElementById("time-tracker-week-time").innerHTML = weekTime;
+      document.getElementById("time-tracker-week-change").innerHTML =
+        weekChange;
 
       // Update "This month" section
       const monthTime = formatTimeUsage(timeTracking.currentMonth);
@@ -271,8 +280,9 @@ document.addEventListener("DOMContentLoaded", () => {
         timeTracking.currentMonth,
         timeTracking.previousMonth
       );
-      setElementContent("time-tracker-month-time", monthTime);
-      setElementContent("time-tracker-month-change", monthChange);
+      document.getElementById("time-tracker-month-time").innerHTML = monthTime;
+      document.getElementById("time-tracker-month-change").innerHTML =
+        monthChange;
 
       // Update "This year" section
       const yearTime = formatTimeUsage(timeTracking.currentYear);
@@ -280,32 +290,10 @@ document.addEventListener("DOMContentLoaded", () => {
         timeTracking.currentYear,
         timeTracking.previousYear
       );
-      setElementContent("time-tracker-year-time", yearTime);
-      setElementContent("time-tracker-year-change", yearChange);
+      document.getElementById("time-tracker-year-time").innerHTML = yearTime;
+      document.getElementById("time-tracker-year-change").innerHTML =
+        yearChange;
     });
-  }
-
-  // Helper function to set content safely
-  function setElementContent(elementId, htmlContent) {
-    const element = document.getElementById(elementId);
-
-    // Clear existing content
-    while (element.firstChild) {
-      element.removeChild(element.firstChild);
-    }
-
-    // Create new content nodes
-    const fragment = document.createDocumentFragment();
-    const parser = new DOMParser();
-    const parsedHTML = parser.parseFromString(htmlContent, "text/html");
-
-    // Append child nodes to the fragment
-    Array.from(parsedHTML.body.childNodes).forEach((node) => {
-      fragment.appendChild(node);
-    });
-
-    // Append the fragment to the element
-    element.appendChild(fragment);
   }
 
   // Initial call to set the time tracking data

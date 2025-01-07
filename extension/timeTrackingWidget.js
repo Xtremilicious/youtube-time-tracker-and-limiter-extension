@@ -1,8 +1,3 @@
-/*
- * YouTube Time Tracker and Limiter
- * This is unimplemented.
- */
-
 // content.js
 
 // Function to inject the CSS styles
@@ -105,67 +100,64 @@ function createTimeTrackerWidget() {
   widget.style.right = "10px";
   widget.style.zIndex = "9999";
   widget.style.display = "none"; // Initially hidden, will be shown on hover
-
-  const widgetHTML = `
-    <div class="time-tracker-section">
-      <div class="time-tracker-context">
-        <div class="time-tracker-context-title">Today</div>
-        <div class="time-tracker-context-subtitle">vs. Last Active Day</div>
-      </div>
-      <div class="time-tracker-metric">
-        <div class="time-tracker-metric-title" id="time-tracker-day-time">1hr 2 mins</div>
-        <div class="time-tracker-metric-subtitle" id="time-tracker-day-change">
-          <span>+69%</span><span><i class="material-icons">arrow_upward</i></span>
+  widget.innerHTML = `
+        <div class="time-tracker-section">
+          <div class="time-tracker-context">
+            <div class="time-tracker-context-title">Today</div>
+            <div class="time-tracker-context-subtitle">vs. Last Active Day</div>
+          </div>
+          <div class="time-tracker-metric">
+            <div class="time-tracker-metric-title" id="time-tracker-day-time">
+              1hr 2 mins
+            </div>
+            <div class="time-tracker-metric-subtitle" id="time-tracker-day-change">
+              <span>+69%</span><span><i class="material-icons">arrow_upward</i></span>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div class="time-tracker-section">
-      <div class="time-tracker-context">
-        <div class="time-tracker-context-title">This week</div>
-        <div class="time-tracker-context-subtitle">vs. Last Week</div>
-      </div>
-      <div class="time-tracker-metric">
-        <div class="time-tracker-metric-title" id="time-tracker-week-time">1hr 2 mins</div>
-        <div class="time-tracker-metric-subtitle" id="time-tracker-week-change">
-          <span>+69%</span><span><i class="material-icons">arrow_upward</i></span>
+        <div class="time-tracker-section">
+          <div class="time-tracker-context">
+            <div class="time-tracker-context-title">This week</div>
+            <div class="time-tracker-context-subtitle">vs. Last Week</div>
+          </div>
+          <div class="time-tracker-metric">
+            <div class="time-tracker-metric-title" id="time-tracker-week-time">
+              1hr 2 mins
+            </div>
+            <div class="time-tracker-metric-subtitle" id="time-tracker-week-change">
+              <span>+69%</span><span><i class="material-icons">arrow_upward</i></span>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div class="time-tracker-section">
-      <div class="time-tracker-context">
-        <div class="time-tracker-context-title">This month</div>
-        <div class="time-tracker-context-subtitle">vs. Last Month</div>
-      </div>
-      <div class="time-tracker-metric">
-        <div class="time-tracker-metric-title" id="time-tracker-month-time">1hr 2 mins</div>
-        <div class="time-tracker-metric-subtitle" id="time-tracker-month-change">
-          <span>+69%</span><span><i class="material-icons">arrow_upward</i></span>
+        <div class="time-tracker-section">
+          <div class="time-tracker-context">
+            <div class="time-tracker-context-title">This month</div>
+            <div class="time-tracker-context-subtitle">vs. Last Month</div>
+          </div>
+          <div class="time-tracker-metric">
+            <div class="time-tracker-metric-title" id="time-tracker-month-time">
+              1hr 2 mins
+            </div>
+            <div class="time-tracker-metric-subtitle" id="time-tracker-month-change">
+              <span>+69%</span><span><i class="material-icons">arrow_upward</i></span>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <div class="time-tracker-section">
-      <div class="time-tracker-context">
-        <div class="time-tracker-context-title">This year</div>
-        <div class="time-tracker-context-subtitle">vs. Last Year</div>
-      </div>
-      <div class="time-tracker-metric">
-        <div class="time-tracker-metric-title" id="time-tracker-year-time">1hr 2 mins</div>
-        <div class="time-tracker-metric-subtitle" id="time-tracker-year-change">
-          <span>+69%</span><span><i class="material-icons">arrow_upward</i></span>
+        <div class="time-tracker-section">
+          <div class="time-tracker-context">
+            <div class="time-tracker-context-title">This year</div>
+            <div class="time-tracker-context-subtitle">vs. Last Year</div>
+          </div>
+          <div class="time-tracker-metric">
+            <div class="time-tracker-metric-title" id="time-tracker-year-time">
+              1hr 2 mins
+            </div>
+            <div class="time-tracker-metric-subtitle" id="time-tracker-year-change">
+              <span>+69%</span><span><i class="material-icons">arrow_upward</i></span>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  `;
-
-  // Parse the HTML string using DOMParser
-  const parser = new DOMParser();
-  const parsedDocument = parser.parseFromString(widgetHTML, "text/html");
-
-  // Append the parsed content to the widget
-  Array.from(parsedDocument.body.childNodes).forEach((node) => {
-    widget.appendChild(node);
-  });
-
+      `;
   return widget;
 }
 
