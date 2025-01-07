@@ -384,6 +384,34 @@
           }
         }
       }
+
+      #popup-footer {
+        display: flex;
+        align-items: center;
+        margin-top: 15px;
+        font-size: 0.9rem;
+        font-weight: 300;
+        justify-content: center;
+        background-color: #bfa940;
+        color: #292a2d;
+        padding: 10px 15px;
+        margin-bottom: -15px;
+        margin-left: -15px;
+        margin-right: -15px;
+        gap: 5px;
+        #rate {
+          cursor: pointer;
+          text-decoration: underline;
+        }
+
+        #dismiss-footer {
+          margin-left: auto;
+          cursor: pointer;
+        }
+      }
+      .hidden {
+        display: none !important;
+      }
     </style>
     <link rel="stylesheet" href="assets/css/fonts.css" />
     <link rel="stylesheet" href="assets/css/bootstrap-icon.css" />
@@ -510,6 +538,11 @@
             </div>
           </div>
         </details>
+      </div>
+      <div id="popup-footer">
+        <span><i class="bi bi-star-fill"></i></span>
+        <span id="rate">Like it? Rate this extension!</span>
+        <span id="dismiss-footer"><i class="bi bi-x-circle"></i></span>
       </div>
     </div>
     <script src="popup.js"></script>

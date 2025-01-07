@@ -30,6 +30,39 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }, 1000);
 
+  // Footer Stuff
+  const footer = document.getElementById("popup-footer");
+  const dismissButton = document.getElementById("dismiss-footer");
+
+  document.getElementById("rate").addEventListener("click", () => {
+    const ratePageURL =
+      "https://addons.mozilla.org/en-US/firefox/addon/youtube-time-tracker-limiter";
+    window.open(ratePageURL, "_blank");
+  });
+
+  // Constants
+  const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+  // Check if footer should be shown
+  chrome.storage.local.get(["footerDismissedAt"], (result) => {
+    const lastDismissed = result.footerDismissedAt || 0;
+    const now = Date.now();
+
+    if (now - lastDismissed > ONE_WEEK_MS) {
+      footer.classList.remove("hidden");
+    } else {
+      footer.classList.add("hidden");
+    }
+  });
+
+  // Handle dismiss button click
+  dismissButton.addEventListener("click", () => {
+    const now = Date.now();
+    chrome.storage.local.set({ footerDismissedAt: now }, () => {
+      footer.classList.add("hidden");
+    });
+  });
+
   //Tracking Stuff
   chrome.storage.local.get(["timeTracking"], (data) => {
     const timeTracking = data.timeTracking || {};
@@ -216,7 +249,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     return [
       pluralize(days, "day"),
-      pluralize(hours, "hour"),
+      pluralize(hours, "hr"),
       pluralize(minutes, "min"),
     ]
       .filter(Boolean)
