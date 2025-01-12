@@ -29,10 +29,10 @@ function loadDefaultSettings(callback) {
       Saturday: 30,
       Sunday: 30,
     },
-    resetTime: "00:00", // Default reset time
-    remainingTime: 30 * 60, // Default to 30 minutes
-    pauseOnMinimize: true, // Default to pause on minimize
-    overrideLimit: 10, // Default override duration in minutes
+    resetTime: "00:00",
+    remainingTime: 30 * 60,
+    pauseOnMinimize: true,
+    overrideLimit: 10,
     timeTracking: {
       currentYear: 0,
       currentMonth: 0,
@@ -46,39 +46,85 @@ function loadDefaultSettings(callback) {
     },
   };
 
-  // Load daily limits from storage or set defaults
-  chrome.storage.local.get("dailyLimits", (data) => {
-    if (!data.dailyLimits) {
-      chrome.storage.local.set(defaultSettings, () => {
-        console.log("Default settings saved to storage");
-      });
-    }
+  chrome.storage.local.set(defaultSettings, () => {
+    console.log("Default settings saved to storage");
 
     const day = new Date().toLocaleString("en-US", { weekday: "long" });
-    const dailyLimit = data?.dailyLimits?.[day] || 30;
+    const dailyLimit = defaultSettings.dailyLimits[day] || 30;
     loadRemainingTime(dailyLimit, () => {
       updateBadge();
-      if (callback) callback(data);
+      if (callback) callback();
       updateAlarm();
     });
   });
+}
 
-  //Tracking Stuff
-  chrome.storage.local.get("timeTracking", (data) => {
-    const tracking = data.timeTracking || {};
-    timeTracking = tracking;
+function loadSettingsPreservingTracking() {
+  const defaultSettings = {
+    dailyLimits: {
+      Monday: 30,
+      Tuesday: 30,
+      Wednesday: 30,
+      Thursday: 30,
+      Friday: 30,
+      Saturday: 30,
+      Sunday: 30,
+    },
+    resetTime: "00:00",
+    remainingTime: 30 * 60,
+    pauseOnMinimize: true,
+    overrideLimit: 10,
+  };
 
-    if (
-      tracking.today === undefined ||
-      tracking.totalTimeWatched === undefined ||
-      tracking.currentYear === undefined ||
-      tracking.currentMonth === undefined ||
-      tracking.currentWeek === undefined
-    ) {
-      timeTracking = defaultSettings.timeTracking;
-      chrome.storage.local.set({ timeTracking: defaultSettings.timeTracking });
-    }
-    resetDailyTracking();
+  // Load settings while preserving timeTracking
+  chrome.storage.local.get(null, (data) => {
+    const newSettings = {
+      ...defaultSettings,
+      ...data, // Preserve existing data
+      dailyLimits: data.dailyLimits || defaultSettings.dailyLimits,
+      timeTracking: data.timeTracking || {
+        currentYear: 0,
+        currentMonth: 0,
+        currentWeek: 0,
+        today: 0,
+        previousYear: 0,
+        previousMonth: 0,
+        previousWeek: 0,
+        yesterday: 0,
+        totalTimeWatched: 0,
+      },
+    };
+
+    chrome.storage.local.set(newSettings, () => {
+      console.log("Settings updated while preserving tracking data");
+    });
+
+    const day = new Date().toLocaleString("en-US", { weekday: "long" });
+    const dailyLimit = newSettings.dailyLimits[day] || 30;
+    loadRemainingTime(dailyLimit, () => {
+      updateBadge();
+      updateAlarm();
+    });
+
+    //Tracking Stuff
+    chrome.storage.local.get("timeTracking", (data) => {
+      const tracking = data.timeTracking || {};
+      timeTracking = tracking;
+
+      if (
+        tracking.today === undefined ||
+        tracking.totalTimeWatched === undefined ||
+        tracking.currentYear === undefined ||
+        tracking.currentMonth === undefined ||
+        tracking.currentWeek === undefined
+      ) {
+        timeTracking = defaultSettings.timeTracking;
+        chrome.storage.local.set({
+          timeTracking: defaultSettings.timeTracking,
+        });
+      }
+      resetDailyTracking();
+    });
   });
 }
 
@@ -194,19 +240,28 @@ function resetDailyTracking() {
         updatedValues.yesterday = result.timeTracking.today || 0;
         updatedValues.today = 0;
 
+        // Get the week number for both dates
+        const getWeekNumber = (date) => {
+          const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+          const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
+          return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+        };
+
         // Week, month, and year transitions based on local time
-        if (
-          Math.floor(
-            (todayLocalDate - lastTrackedDateOnly) / (1000 * 60 * 60 * 24)
-          ) >= 7
-        ) {
+        const lastWeek = getWeekNumber(lastTrackedDateOnly);
+        const currentWeek = getWeekNumber(todayLocalDate);
+
+        // Check if week has changed
+        if (lastWeek !== currentWeek) {
           updatedValues.previousWeek = result.timeTracking.currentWeek || 0;
           updatedValues.currentWeek = 0;
         }
+        // Check if month has changed
         if (todayLocalDate.getMonth() !== lastTrackedDateOnly.getMonth()) {
           updatedValues.previousMonth = result.timeTracking.currentMonth || 0;
           updatedValues.currentMonth = 0;
         }
+        // Check if year has changed
         if (
           todayLocalDate.getFullYear() !== lastTrackedDateOnly.getFullYear()
         ) {
@@ -479,6 +534,8 @@ function loadRemainingTime(dailyLimit, callback) {
 // Initialize settings on installation or extension startup
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
+    // Only set default settings on fresh install
+    loadDefaultSettings();
     chrome.notifications.create({
       type: "basic",
       iconUrl: "icon.png",
@@ -486,8 +543,11 @@ chrome.runtime.onInstalled.addListener((details) => {
       message:
         "Click the Extensions icon (🔧) and pin YouTube Tracker for easy access!",
     });
+  } else if (details.reason === "update") {
+    // On update, only load settings if they don't exist
+    loadSettingsPreservingTracking();
   }
-  loadDefaultSettings();
+
   chrome.storage.local.set({
     installedAt: new Date().toISOString().split("T")[0],
   });
