@@ -22,11 +22,19 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   chrome.storage.local.get(
-    ["dailyLimits", "resetTime", "pauseOnMinimize", "overrideLimit"],
+    [
+      "dailyLimits",
+      "resetTime",
+      "pauseOnMinimize",
+      "overrideLimit",
+      "excludeYoutubeMusic",
+    ],
     (data) => {
       document.getElementById("reset-time").value = data.resetTime || "00:00";
       document.getElementById("pause-on-minimize").checked =
         data.pauseOnMinimize || false;
+      document.getElementById("exclude-youtube-music").checked =
+        data.excludeYoutubeMusic || false;
       document.getElementById("override-limit").value =
         data.overrideLimit || 10;
 
@@ -91,6 +99,17 @@ document.addEventListener("DOMContentLoaded", () => {
       chrome.runtime.sendMessage({
         action: "savePauseOnMinimize",
         pauseState: e.target.checked,
+      });
+    });
+
+  // Exclude YouTube Music Change Handler
+  document
+    .getElementById("exclude-youtube-music")
+    .addEventListener("change", (e) => {
+      chrome.storage.local.set({ excludeYoutubeMusic: e.target.checked });
+      chrome.runtime.sendMessage({
+        action: "saveExcludeYoutubeMusic",
+        excludeYoutubeMusicState: e.target.checked,
       });
     });
 

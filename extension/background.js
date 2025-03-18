@@ -2,7 +2,8 @@
 let remainingTime = 0; // Remaining time in seconds
 let activeTabId = null; // ID of the active tab
 let isOverrideActive = false; // Flag to track override state
-let pauseOnMinimize = false; // Flag to pause on minimize
+let pauseOnMinimize = true; // Flag to pause on minimize
+let excludeYoutubeMusic = false; // Flag to exclude YouTube Music
 let isPaused = false; // Flag to track if timer is paused
 let timerInterval = null; // Interval ID for the timer
 let overrideSetTimout = null; // Timeout for override duration
@@ -44,6 +45,7 @@ function loadDefaultSettings(callback) {
       yesterday: 0,
       totalTimeWatched: 0,
     },
+    excludeYoutubeMusic: false,
   };
 
   chrome.storage.local.set(defaultSettings, () => {
@@ -73,6 +75,7 @@ function loadSettingsPreservingTracking() {
     resetTime: "00:00",
     remainingTime: 30 * 60,
     pauseOnMinimize: true,
+    excludeYoutubeMusic: false,
     overrideLimit: 10,
   };
 
@@ -152,36 +155,60 @@ function updateBadge() {
  * Start the timer, decrementing remaining time every second.
  */
 function startTimer() {
-  chrome.runtime.sendMessage({ action: "resumeTimer" });
-  if (!isOverrideActive) {
-    chrome.storage.local.set({ isOverrideActive: false });
-  }
-
-  if (!timerInterval) {
-    console.log("Starting the timer");
-    timerInterval = setInterval(() => {
-      if (remainingTime > 0 && !isOverrideActive && !isPaused) {
-        remainingTime--;
-        chrome.storage.local.set({ remainingTime, isPaused: false });
-        updateBadge();
-      } else if (remainingTime === 0 && !isOverrideActive) {
-        clearInterval(timerInterval);
-        timerInterval = null;
-        notifyTimeUp();
-        redirectToBlockingPage();
+  // Check if the current tab is YouTube Music and should be excluded
+  if (activeTabId) {
+    chrome.tabs.get(activeTabId, (tab) => {
+      if (tab.url.includes("music.youtube.com") && excludeYoutubeMusic) {
+        console.log(
+          "YouTube Music is excluded from tracking. Not starting timer."
+        );
+        return; // Skip starting the timer for YouTube Music
       }
-    }, 1000);
-    chrome.storage.local.set({ isPaused: false });
-  }
 
-  //Tracking Stuff
-  if (!trackerTimerInterval) {
-    trackerTimerInterval = setInterval(() => {
-      totalSecondsWatched += 1;
-      updateTimeTracking(1);
+      chrome.runtime.sendMessage({ action: "resumeTimer" });
+      if (!isOverrideActive) {
+        chrome.storage.local.set({ isOverrideActive: false });
+      }
 
-      console.log(`Time watched today: ${formatTime(timeTracking.today)}`);
-    }, 1000);
+      if (!timerInterval) {
+        console.log("Starting the timer");
+        timerInterval = setInterval(() => {
+          // Check if the current tab is YouTube Music and should be excluded
+          if (tab.url.includes("music.youtube.com") && excludeYoutubeMusic) {
+            console.log("YouTube Music is excluded from tracking.");
+            return; // Skip timer decrementing for YouTube Music
+          }
+
+          if (remainingTime > 0 && !isOverrideActive && !isPaused) {
+            remainingTime--;
+            chrome.storage.local.set({ remainingTime, isPaused: false });
+            updateBadge();
+          } else if (remainingTime === 0 && !isOverrideActive) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            notifyTimeUp();
+            redirectToBlockingPage();
+          }
+        }, 1000);
+        chrome.storage.local.set({ isPaused: false });
+      }
+
+      //Tracking Stuff
+      if (!trackerTimerInterval) {
+        trackerTimerInterval = setInterval(() => {
+          // Check if the current tab is YouTube Music and should be excluded
+          if (tab.url.includes("music.youtube.com") && excludeYoutubeMusic) {
+            console.log("YouTube Music is excluded from tracking.");
+            return; // Skip tracking for YouTube Music
+          }
+
+          totalSecondsWatched += 1;
+          updateTimeTracking(1);
+
+          console.log(`Time watched today: ${formatTime(timeTracking.today)}`);
+        }, 1000);
+      }
+    });
   }
 }
 
@@ -328,9 +355,21 @@ function redirectToBlockingPage() {
     const activeTab = tabs[0];
     // Save the current URL (before redirecting) to storage
     chrome.storage.local.set({ originalUrl: activeTab.url });
-    if (activeTab && activeTab.url.includes("youtube.com")) {
-      chrome.tabs.update(activeTab.id, { url: blockingPageURL });
-    }
+
+    // Check if YouTube Music should be excluded
+    chrome.storage.local.get("excludeYoutubeMusic", (data) => {
+      if (
+        data.excludeYoutubeMusic &&
+        activeTab.url.includes("music.youtube.com")
+      ) {
+        console.log("YouTube Music is excluded from blocking page.");
+        return; // Skip redirecting for YouTube Music
+      }
+
+      if (activeTab && activeTab.url.includes("youtube.com")) {
+        chrome.tabs.update(activeTab.id, { url: blockingPageURL });
+      }
+    });
   });
 }
 
@@ -374,12 +413,18 @@ function resetTimer() {
   chrome.storage.local.get("dailyLimits", (data) => {
     const dailyLimits = data.dailyLimits || {};
     const dailyLimit = dailyLimits[day] || 0;
-    remainingTime = dailyLimit * 60;
-    chrome.storage.local.set({ remainingTime });
-    updateBadge();
-    overrideSetTimout = null;
-    isOverrideActive = false;
-    chrome.storage.local.set({ isOverrideActive });
+
+    // Check if the current tab is YouTube Music and should be excluded
+    if (activeTabId) {
+      chrome.tabs.get(activeTabId, (tab) => {
+        remainingTime = dailyLimit * 60;
+        chrome.storage.local.set({ remainingTime });
+        updateBadge();
+        overrideSetTimout = null;
+        isOverrideActive = false;
+        chrome.storage.local.set({ isOverrideActive });
+      });
+    }
   });
 }
 
@@ -468,6 +513,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case "updateVisibility":
+
       const { isVisible } = message;
       isYouTubeVisible = isVisible;
       console.log(
@@ -506,6 +552,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.log(`Saving pause on minimize state: ${pauseState}`);
       pauseOnMinimize = pauseState;
       break;
+
+    case "saveExcludeYoutubeMusic":
+      const { excludeYoutubeMusicState } = message;
+      console.log(`Saving exclude youtube music state: ${excludeYoutubeMusicState}`);
+      excludeYoutubeMusic = excludeYoutubeMusicState;
+      break;
+
     case "saveOverrideLimit":
       overrideSetTimout = setTimeout(() => {
         isOverrideActive = false;
@@ -561,12 +614,26 @@ chrome.runtime.onStartup.addListener(() => {
     const activeTab = tabs[0];
 
     if (activeTab && activeTab.url && activeTab.url.includes("youtube.com")) {
-      console.log("Active YouTube tab detected on startup. Starting timer...");
-      activeTabId = activeTab.id; // Set the active tab ID
-      isYouTubeTab = true;
-      isYouTubeVisible = true;
+      // Check if YouTube Music should be excluded
+      chrome.storage.local.get("excludeYoutubeMusic", (data) => {
+        if (
+          data.excludeYoutubeMusic &&
+          activeTab.url.includes("music.youtube.com")
+        ) {
+          console.log("YouTube Music is excluded from tracking.");
+          isYouTubeTab = false;
+          isYouTubeVisible = false;
+          return; // Skip tracking for YouTube Music
+        }
+        console.log(
+          "Active YouTube tab detected on startup. Starting timer..."
+        );
+        activeTabId = activeTab.id; // Set the active tab ID
+        isYouTubeTab = true;
+        isYouTubeVisible = true;
 
-      startTimer(); // Start the timer for YouTube
+        startTimer(); // Start the timer for YouTube
+      });
     } else {
       console.log("No active YouTube tab detected on startup.");
       isYouTubeTab = false;
@@ -586,7 +653,12 @@ chrome.runtime.onStartup.addListener(() => {
 
   // Load pause on minimize state from storage
   chrome.storage.local.get(["pauseOnMinimize"], (data) => {
+    console.log(data.pauseOnMinimize, 'test')
     pauseOnMinimize = data.pauseOnMinimize ?? true;
+  });
+
+  chrome.storage.local.get(["excludeYoutubeMusic"], (data) => {
+    excludeYoutubeMusic = data.excludeYoutubeMusic ?? false;
   });
 
   chrome.storage.local.get(["resetTime", "alarmTimestamp"], (data) => {
@@ -627,7 +699,15 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.tabs.onActivated.addListener((activeInfo) => {
   chrome.tabs.get(activeInfo.tabId, (tab) => {
     activeTabId = tab.id; // Store active tab ID
-    isYouTubeTab = tab.url.includes("youtube.com"); // Check if it's YouTube
+
+    console.log(tab.url, excludeYoutubeMusic)
+
+    if (excludeYoutubeMusic && tab.url.includes("music.youtube.com")) {
+      isYouTubeTab = false;
+    } else {
+      isYouTubeTab = tab.url.includes("youtube.com"); // Check if it's YouTube
+    }
+
     if (isYouTubeTab && isYouTubeVisible) {
       console.log("YouTube tab activated. Resuming timer...");
       startTimer();
@@ -642,6 +722,13 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // Ensure we only process when the tab's URL changes and it's the active tab
   if (changeInfo.url && tab.active) {
+    const isNowYouTubeMusic = changeInfo.url.includes("music.youtube.com");
+    if (isNowYouTubeMusic) {
+      isYouTubeTab = false;
+      isYouTubeVisible = false;
+      return;
+    }
+
     const isNowYouTube = changeInfo.url.includes("youtube.com");
     const wasPreviouslyYouTube = isYouTubeTab && tabId === activeTabId;
 

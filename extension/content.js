@@ -1,23 +1,28 @@
 function handleVisibilityChange() {
-  const isVisible =
-    document.visibilityState === "visible" && document.hidden !== true;
+  chrome.storage.local.get("excludeYoutubeMusic", (data) => {
+    isYouTubeMusic =
+      data.excludeYoutubeMusic && document.URL.includes("music.youtube.com");
+      console.log(isYouTubeMusic)
 
-  console.log("handleVisibilityChange:", isVisible);
+    const isVisible =
+      document.visibilityState === "visible" &&
+      document.hidden !== true &&
+      !isYouTubeMusic;
 
-  chrome.runtime.sendMessage({
-    action: "updateVisibility",
-    isVisible,
+    console.log("handleVisibilityChange:", isVisible);
+
+    // Send visibility update to the background script
+    chrome.runtime.sendMessage({
+      action: "updateVisibility",
+      isVisible,
+    });
   });
 }
 
 // Listen for visibility changes
 document.addEventListener("visibilitychange", handleVisibilityChange);
 
-// Notify the background script of the initial visibility state
-chrome.runtime.sendMessage({
-  action: "updateVisibility",
-  isVisible: document.visibilityState === "visible" && document.hidden !== true,
-});
+handleVisibilityChange();
 
 // chrome.storage.local.get(["showTimer"], (data) => {
 //   if (data.showTimer) {
