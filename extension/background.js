@@ -186,6 +186,8 @@ function startTimer() {
   if (!timerState.timerInterval) {
     console.log("Starting the timer");
     timerState.timerInterval = setInterval(() => {
+      // --- Log State Inside Interval ---
+      console.log(`[Timer Tick] Checking state: remainingTime = ${timerState.remainingTime}, isOverrideActive = ${timerState.isOverrideActive}, isPaused = ${timerState.isPaused}`);
       if (timerState.remainingTime > 0 && !timerState.isOverrideActive && !timerState.isPaused) {
         timerState.remainingTime--;
         // Batch storage updates if possible, or keep individual for simplicity for now
@@ -656,12 +658,8 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
-chrome.runtime.onStartup.addListener(() => {
-  console.log("Browser started. Checking active tab...");
-
-  // Consolidate initialization logic into a single call
-  initializeExtensionState();
-});
+// Consolidate initialization logic into a single call
+// initializeExtensionState(); // Moved to top-level execution
 
 // Listen for tab activation (when a tab is clicked or switched to)
 chrome.tabs.onActivated.addListener((activeInfo) => {
@@ -758,6 +756,9 @@ function initializeExtensionState() {
       timerState.isYouTubeTab = false;
       timerState.isYouTubeVisible = false;
 
+      // --- Log State After Load ---
+      console.log(`[Init] State after loading/defaulting: remainingTime = ${timerState.remainingTime}`);
+
       // --- Initialize Tracking State ---
       trackingState.timeTracking = data.timeTracking || defaultTimeTracking;
       // If timeTracking was missing, save the default back
@@ -807,6 +808,8 @@ function checkActiveTabOnStartup() {
      timerState.isYouTubeTab = true;
      // Visibility should be reported by content script via 'updateVisibility'
      // timerState.isYouTubeVisible = true; // Avoid assuming visibility
+     // --- Log State Before Starting Timer ---
+     console.log(`[Startup Check] Before calling startTimer: remainingTime = ${timerState.remainingTime}`);
      startTimer();
    } else {
      console.log("No active YouTube tab detected on startup.");
@@ -814,3 +817,7 @@ function checkActiveTabOnStartup() {
    }
  });
 }
+
+// Initialize the extension state whenever the background script starts
+// This covers browser startup, extension update, and manual enable.
+initializeExtensionState();
