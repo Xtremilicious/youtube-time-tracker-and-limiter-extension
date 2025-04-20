@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
     (data) => {
       document.getElementById("reset-time").value = data.resetTime || "00:00";
       document.getElementById("pause-on-minimize").checked =
-        data.pauseOnMinimize || false;
+        data.pauseOnMinimize ?? true;
       document.getElementById("override-limit").value =
         data.overrideLimit || 10;
 

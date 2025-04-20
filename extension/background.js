@@ -1,18 +1,21 @@
-// Default values for the tracker state
-let remainingTime = 0; // Remaining time in seconds
-let activeTabId = null; // ID of the active tab
-let isOverrideActive = false; // Flag to track override state
-let pauseOnMinimize = false; // Flag to pause on minimize
-let isPaused = false; // Flag to track if timer is paused
-let timerInterval = null; // Interval ID for the timer
-let overrideSetTimout = null; // Timeout for override duration
-let isYouTubeTab = false; // Flag to track if the active tab is YouTube
-let isYouTubeVisible = false; // Flag to track if YouTube is visible in the active tab
+// Define state objects
+let timerState = {
+  remainingTime: 0, // Remaining time in seconds
+  activeTabId: null, // ID of the active tab
+  isOverrideActive: false, // Flag to track override state
+  pauseOnMinimize: true, // Initialize with default true
+  isPaused: false, // Flag to track if timer is paused
+  timerInterval: null, // Interval ID for the timer
+  overrideSetTimout: null, // Timeout for override duration
+  isYouTubeTab: false, // Flag to track if the active tab is YouTube
+  isYouTubeVisible: false, // Flag to track if YouTube is visible in the active tab
+};
 
-//Tracking Stuff
-let trackerTimerInterval = null;
-let totalSecondsWatched = 0;
-let timeTracking = {};
+let trackingState = {
+  trackerTimerInterval: null,
+  timeTracking: {}, // This will be populated by storage or defaults
+  isResetting: false // Flag to prevent concurrent reset in updateTimeTracking
+};
 
 /**
  * Load settings from local storage and set defaults if necessary.
@@ -52,6 +55,13 @@ function loadDefaultSettings(callback) {
     const day = new Date().toLocaleString("en-US", { weekday: "long" });
     const dailyLimit = defaultSettings.dailyLimits[day] || 30;
     loadRemainingTime(dailyLimit, () => {
+      // Initialize state from loaded/default settings
+      timerState.remainingTime = defaultSettings.remainingTime;
+      timerState.pauseOnMinimize = defaultSettings.pauseOnMinimize;
+      trackingState.timeTracking = defaultSettings.timeTracking; // Initialize tracking state
+      timerState.isPaused = false; // Reset paused state
+      timerState.isOverrideActive = false; // Reset override state
+
       updateBadge();
       if (callback) callback();
       updateAlarm();
@@ -97,6 +107,7 @@ function loadSettingsPreservingTracking() {
 
     chrome.storage.local.set(newSettings, () => {
       console.log("Settings updated while preserving tracking data");
+      initializeExtensionState();
     });
 
     const day = new Date().toLocaleString("en-US", { weekday: "long" });
@@ -104,26 +115,39 @@ function loadSettingsPreservingTracking() {
     loadRemainingTime(dailyLimit, () => {
       updateBadge();
       updateAlarm();
-    });
 
-    //Tracking Stuff
-    chrome.storage.local.get("timeTracking", (data) => {
-      const tracking = data.timeTracking || {};
-      timeTracking = tracking;
+      //Tracking Stuff
+      chrome.storage.local.get("timeTracking", (data) => {
+        const tracking = data.timeTracking || {};
+        // Update trackingState instead of global timeTracking
+        trackingState.timeTracking = tracking;
 
-      if (
-        tracking.today === undefined ||
-        tracking.totalTimeWatched === undefined ||
-        tracking.currentYear === undefined ||
-        tracking.currentMonth === undefined ||
-        tracking.currentWeek === undefined
-      ) {
-        timeTracking = defaultSettings.timeTracking;
-        chrome.storage.local.set({
-          timeTracking: defaultSettings.timeTracking,
-        });
-      }
-      resetDailyTracking();
+        if (
+          tracking.today === undefined ||
+          tracking.totalTimeWatched === undefined ||
+          tracking.currentYear === undefined ||
+          tracking.currentMonth === undefined ||
+          tracking.currentWeek === undefined
+        ) {
+          // If tracking data is incomplete, use default
+          const defaultTracking = {
+            currentYear: 0,
+            currentMonth: 0,
+            currentWeek: 0,
+            today: 0,
+            previousYear: 0,
+            previousMonth: 0,
+            previousWeek: 0,
+            yesterday: 0,
+            totalTimeWatched: 0,
+          };
+          trackingState.timeTracking = defaultTracking;
+          chrome.storage.local.set({
+            timeTracking: defaultTracking, // Save the default back to storage
+          });
+        }
+        resetDailyTracking(); // Ensure daily tracking reset logic runs
+      });
     });
   });
 }
@@ -134,14 +158,15 @@ function loadSettingsPreservingTracking() {
 function updateBadge() {
   let badgeText;
 
-  if (remainingTime >= 3600) {
-    const hours = Math.floor(remainingTime / 3600);
+  // Use timerState.remainingTime
+  if (timerState.remainingTime >= 3600) {
+    const hours = Math.floor(timerState.remainingTime / 3600);
     badgeText = `${hours}h`;
-  } else if (remainingTime >= 60) {
-    const minutes = Math.floor(remainingTime / 60);
+  } else if (timerState.remainingTime >= 60) {
+    const minutes = Math.floor(timerState.remainingTime / 60);
     badgeText = `${minutes}m`;
   } else {
-    badgeText = `${remainingTime}s`;
+    badgeText = `${timerState.remainingTime}s`;
   }
 
   chrome.browserAction.setBadgeBackgroundColor({ color: "#ff0033" });
@@ -153,34 +178,37 @@ function updateBadge() {
  */
 function startTimer() {
   chrome.runtime.sendMessage({ action: "resumeTimer" });
-  if (!isOverrideActive) {
-    chrome.storage.local.set({ isOverrideActive: false });
+  // Use timerState
+  if (!timerState.isOverrideActive) {
+    chrome.storage.local.set({ isOverrideActive: false }); // Keep storing individual flag if needed elsewhere
   }
 
-  if (!timerInterval) {
+  if (!timerState.timerInterval) {
     console.log("Starting the timer");
-    timerInterval = setInterval(() => {
-      if (remainingTime > 0 && !isOverrideActive && !isPaused) {
-        remainingTime--;
-        chrome.storage.local.set({ remainingTime, isPaused: false });
+    timerState.timerInterval = setInterval(() => {
+      if (timerState.remainingTime > 0 && !timerState.isOverrideActive && !timerState.isPaused) {
+        timerState.remainingTime--;
+        // Batch storage updates if possible, or keep individual for simplicity for now
+        chrome.storage.local.set({ remainingTime: timerState.remainingTime, isPaused: false });
         updateBadge();
-      } else if (remainingTime === 0 && !isOverrideActive) {
-        clearInterval(timerInterval);
-        timerInterval = null;
+      } else if (timerState.remainingTime === 0 && !timerState.isOverrideActive) {
+        clearInterval(timerState.timerInterval);
+        timerState.timerInterval = null;
         notifyTimeUp();
         redirectToBlockingPage();
       }
     }, 1000);
-    chrome.storage.local.set({ isPaused: false });
+    timerState.isPaused = false; // Update state directly
+    chrome.storage.local.set({ isPaused: false }); // Update storage
   }
 
-  //Tracking Stuff
-  if (!trackerTimerInterval) {
-    trackerTimerInterval = setInterval(() => {
-      totalSecondsWatched += 1;
-      updateTimeTracking(1);
+  //Tracking Stuff - Use trackingState
+  if (!trackingState.trackerTimerInterval) {
+    trackingState.trackerTimerInterval = setInterval(() => {
+      // totalSecondsWatched is removed, logic now in updateTimeTracking
+      updateTimeTracking(1); // Updates trackingState.timeTracking internally
 
-      console.log(`Time watched today: ${formatTime(timeTracking.today)}`);
+      console.log(`Time watched today: ${formatTime(trackingState.timeTracking.today)}`);
     }, 1000);
   }
 }
@@ -223,8 +251,9 @@ function resetDailyTracking() {
         lastTrackedDateOnly.toLocaleDateString() !==
         todayLocalDate.toLocaleDateString()
       ) {
+        // Use trackingState.timeTracking
         const updatedValues = {
-          ...(result.timeTracking ?? {
+          ...(result.timeTracking ?? { // Use the result directly as it holds the stored tracking data
             currentYear: 0,
             currentMonth: 0,
             currentWeek: 0,
@@ -237,7 +266,7 @@ function resetDailyTracking() {
           }),
         };
 
-        updatedValues.yesterday = result.timeTracking.today || 0;
+        updatedValues.yesterday = result.timeTracking.today || 0; // Access directly from result
         updatedValues.today = 0;
 
         // Get the week number for both dates
@@ -253,19 +282,19 @@ function resetDailyTracking() {
 
         // Check if week has changed
         if (lastWeek !== currentWeek) {
-          updatedValues.previousWeek = result.timeTracking.currentWeek || 0;
+          updatedValues.previousWeek = result.timeTracking.currentWeek || 0; // Access directly from result
           updatedValues.currentWeek = 0;
         }
         // Check if month has changed
         if (todayLocalDate.getMonth() !== lastTrackedDateOnly.getMonth()) {
-          updatedValues.previousMonth = result.timeTracking.currentMonth || 0;
+          updatedValues.previousMonth = result.timeTracking.currentMonth || 0; // Access directly from result
           updatedValues.currentMonth = 0;
         }
         // Check if year has changed
         if (
           todayLocalDate.getFullYear() !== lastTrackedDateOnly.getFullYear()
         ) {
-          updatedValues.previousYear = result.timeTracking.currentYear || 0;
+          updatedValues.previousYear = result.timeTracking.currentYear || 0; // Access directly from result
           updatedValues.currentYear = 0;
         }
 
@@ -273,49 +302,52 @@ function resetDailyTracking() {
         chrome.storage.local.set(
           { lastTrackedDate: now.toISOString(), timeTracking: updatedValues },
           () => {
+            trackingState.timeTracking = updatedValues; // Update local state after saving
             resolve(); // Reset completed
           }
         );
       } else {
         chrome.storage.local.set({ lastTrackedDate: now.toISOString() });
+        trackingState.timeTracking = result.timeTracking; // Ensure local state is current
         resolve(); // No reset needed
       }
     });
   });
 }
 
-let isResetting = false;
 function updateTimeTracking(seconds = 1) {
   console.log("Updating time tracking...");
 
-  if (isResetting) return; // Prevent concurrent reset
+  if (trackingState.isResetting) return; // Prevent concurrent reset using state object
 
-  isResetting = true;
+  trackingState.isResetting = true;
 
   resetDailyTracking().then(() => {
-    chrome.storage.local.get("timeTracking", (result) => {
-      const localTimeTracking = result.timeTracking || {};
+    // No need to get again if resetDailyTracking updates trackingState.timeTracking
+    // Use the state variable directly which was updated by resetDailyTracking or initialized
+    const localTimeTracking = trackingState.timeTracking || {}; // Use state
 
-      // Update timeTracking values
-      const updatedValues = { ...localTimeTracking };
-      updatedValues.today = (localTimeTracking.today || 0) + seconds;
-      updatedValues.totalTimeWatched =
-        (localTimeTracking.totalTimeWatched || 0) + seconds;
+    // Update timeTracking values in state
+    const updatedValues = { ...localTimeTracking };
+    updatedValues.today = (localTimeTracking.today || 0) + seconds;
+    updatedValues.totalTimeWatched =
+      (localTimeTracking.totalTimeWatched || 0) + seconds;
 
-      // Directly update currentYear, currentMonth, currentWeek without comparisons
-      updatedValues.currentYear =
-        (localTimeTracking.currentYear || 0) + seconds;
-      updatedValues.currentMonth =
-        (localTimeTracking.currentMonth || 0) + seconds;
-      updatedValues.currentWeek =
-        (localTimeTracking.currentWeek || 0) + seconds;
+    // Directly update currentYear, currentMonth, currentWeek without comparisons
+    updatedValues.currentYear =
+      (localTimeTracking.currentYear || 0) + seconds;
+    updatedValues.currentMonth =
+      (localTimeTracking.currentMonth || 0) + seconds;
+    updatedValues.currentWeek =
+      (localTimeTracking.currentWeek || 0) + seconds;
 
-      // Save updated values
-      chrome.storage.local.set({ timeTracking: updatedValues }, () => {
-        console.log("Time tracking updated:", updatedValues);
-        isResetting = false;
-      });
+    // Save updated values
+    chrome.storage.local.set({ timeTracking: updatedValues }, () => {
+      console.log("Time tracking updated:", updatedValues);
+      trackingState.timeTracking = updatedValues; // Update state after saving
+      trackingState.isResetting = false; // Release lock
     });
+    // Removed the redundant get call
   });
 }
 
@@ -338,19 +370,21 @@ function redirectToBlockingPage() {
  * Stop the timer when paused or reset.
  */
 function stopTimer() {
-  if (isPaused) {
+  // Use timerState
+  if (timerState.isPaused) {
     console.log("Timer already paused");
     return;
   }
-  clearInterval(timerInterval);
-  timerInterval = null;
+  clearInterval(timerState.timerInterval);
+  timerState.timerInterval = null;
+  timerState.isPaused = true; // Update state directly
   console.log("Timer stopped");
-  chrome.storage.local.set({ isPaused: true });
+  chrome.storage.local.set({ isPaused: true }); // Update storage
 
-  //Tracking Stuff
-  if (trackerTimerInterval) {
-    clearInterval(trackerTimerInterval);
-    trackerTimerInterval = null;
+  //Tracking Stuff - Use trackingState
+  if (trackingState.trackerTimerInterval) {
+    clearInterval(trackingState.trackerTimerInterval);
+    trackingState.trackerTimerInterval = null;
   }
 }
 
@@ -374,12 +408,15 @@ function resetTimer() {
   chrome.storage.local.get("dailyLimits", (data) => {
     const dailyLimits = data.dailyLimits || {};
     const dailyLimit = dailyLimits[day] || 0;
-    remainingTime = dailyLimit * 60;
-    chrome.storage.local.set({ remainingTime });
+    // Use timerState
+    timerState.remainingTime = dailyLimit * 60;
+    chrome.storage.local.set({ remainingTime: timerState.remainingTime }); // Use timerState
     updateBadge();
-    overrideSetTimout = null;
-    isOverrideActive = false;
-    chrome.storage.local.set({ isOverrideActive });
+    // Use timerState for override properties
+    clearTimeout(timerState.overrideSetTimout); // Clear any existing override timeout
+    timerState.overrideSetTimout = null;
+    timerState.isOverrideActive = false;
+    chrome.storage.local.set({ isOverrideActive: false }); // Update storage
   });
 }
 
@@ -451,17 +488,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case "getRemainingTime":
-      sendResponse({ time: remainingTime });
+      sendResponse({ time: timerState.remainingTime });
       break;
 
     case "activateOverride":
-      isOverrideActive = true;
+      // Use timerState
+      timerState.isOverrideActive = true;
       // Save the override status in chrome storage
       chrome.storage.local.set({ isOverrideActive: true });
-      overrideSetTimout = setTimeout(() => {
-        isOverrideActive = false;
+      // Clear previous timeout if exists
+      if (timerState.overrideSetTimout) {
+         clearTimeout(timerState.overrideSetTimout);
+      }
+      timerState.overrideSetTimout = setTimeout(() => {
+        timerState.isOverrideActive = false;
         chrome.storage.local.set({ isOverrideActive: false });
-        if (isYouTubeTab && isYouTubeVisible) {
+        // Check timerState flags before starting
+        if (timerState.isYouTubeTab && timerState.isYouTubeVisible) {
           startTimer();
         }
       }, message.overrideLimit * 60 * 1000); // Override lasts for overrideLimit minutes
@@ -469,21 +512,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "updateVisibility":
       const { isVisible } = message;
-      isYouTubeVisible = isVisible;
+      // Use timerState
+      timerState.isYouTubeVisible = isVisible;
       console.log(
         "pauseOnMinimize:",
-        pauseOnMinimize,
+        timerState.pauseOnMinimize, // Use timerState
         "isYouTubeVisible:",
-        isYouTubeVisible
+        timerState.isYouTubeVisible // Use timerState
       );
 
-      if (sender.tab.id === activeTabId) {
-        if (isYouTubeVisible) {
+      // Use timerState
+      if (sender.tab.id === timerState.activeTabId) {
+        if (timerState.isYouTubeVisible) {
           console.log("YouTube tab is visible. Resuming timer...");
           startTimer();
-        } else if (pauseOnMinimize) {
-          console.log("YouTube tab is not visible. Pausing timer...");
-          stopTimer();
+        } else {
+          console.log(
+            "YouTube tab is not visible. Checking pauseOnMinimize setting..."
+          );
+          // Use timerState
+          if (timerState.pauseOnMinimize) {
+            console.log("Pausing timer because pauseOnMinimize is true.");
+            stopTimer();
+          }
         }
       }
       break;
@@ -504,13 +555,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "savePauseOnMinimize":
       const { pauseState } = message;
       console.log(`Saving pause on minimize state: ${pauseState}`);
-      pauseOnMinimize = pauseState;
+      // Update both the state variable and storage
+      timerState.pauseOnMinimize = pauseState; // Use timerState
+      chrome.storage.local.set({ pauseOnMinimize: pauseState }, () => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "Error saving pauseOnMinimize:",
+            chrome.runtime.lastError
+          );
+        }
+      });
       break;
     case "saveOverrideLimit":
-      overrideSetTimout = setTimeout(() => {
-        isOverrideActive = false;
-        chrome.storage.local.set({ isOverrideActive: false });
-      });
+      // This case seems incomplete. It just clears the timeout?
+      // Assuming it should re-activate the override logic or similar.
+      // Keeping existing logic but noting potential issue.
+      if (timerState.overrideSetTimout) { // Use timerState
+         clearTimeout(timerState.overrideSetTimout);
+      }
+      // Perhaps the intention was to clear the *existing* override immediately
+      // when the limit changes? Or restart it with the new limit? Needs clarification.
+      // For now, just clearing the existing timeout reference.
+      timerState.overrideSetTimout = null; // Clear reference in state
+      // If override was active, it might need to be reset or restarted here based on intent.
       break;
   }
 
@@ -521,10 +588,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 function loadRemainingTime(dailyLimit, callback) {
   chrome.storage.local.get("remainingTime", (data) => {
     if (data.remainingTime !== undefined) {
-      remainingTime = data.remainingTime;
+      timerState.remainingTime = data.remainingTime; // Use timerState
     } else {
-      remainingTime = dailyLimit * 60; // Default to daily limit if not saved
-      chrome.storage.local.set({ remainingTime });
+      timerState.remainingTime = dailyLimit * 60; // Default to daily limit if not saved
+      chrome.storage.local.set({ remainingTime: timerState.remainingTime }); // Use timerState
     }
     updateBadge();
     if (callback) callback();
@@ -534,129 +601,107 @@ function loadRemainingTime(dailyLimit, callback) {
 // Initialize settings on installation or extension startup
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
-    // Only set default settings on fresh install
-    loadDefaultSettings();
-    chrome.notifications.create({
-      type: "basic",
-      iconUrl: "icon.png",
-      title: "YouTube Tracker Installed",
-      message:
-        "Click the Extensions icon (🔧) and pin YouTube Tracker for easy access!",
+    console.log("Setting default value for pauseOnMinimize on install.");
+    chrome.storage.local.set({ pauseOnMinimize: true }, () => {
+      if (chrome.runtime.lastError) {
+        console.error(
+          "Error setting default pauseOnMinimize:",
+          chrome.runtime.lastError
+        );
+      }
     });
   } else if (details.reason === "update") {
-    // On update, only load settings if they don't exist
-    loadSettingsPreservingTracking();
+    chrome.storage.local.get("pauseOnMinimize", (data) => {
+      if (data.pauseOnMinimize === undefined) {
+        console.log("Setting default pauseOnMinimize after update.");
+        chrome.storage.local.set({ pauseOnMinimize: true });
+        timerState.pauseOnMinimize = true; // Update state
+      } else {
+        timerState.pauseOnMinimize = data.pauseOnMinimize; // Load existing into state
+      }
+    });
   }
 
   chrome.storage.local.set({
     installedAt: new Date().toISOString().split("T")[0],
   });
+
+  // Ensure other initial setup happens after defaults are potentially set
+  loadSettingsPreservingTracking(); // Or loadDefaultSettings() if appropriate
+  // Restore the notification from the previous incorrect edit if desired
+  if (details.reason === "install") {
+    chrome.notifications.create({
+      type: "basic",
+      iconUrl: "assets/icons/icon.png", // Correct path?
+      title: "YouTube Tracker Installed",
+      message:
+        "Click the Extensions icon and pin YouTube Tracker for easy access!",
+    });
+  }
+
+  // Reload YouTube tabs on install/update
+  if (details.reason === "install" || details.reason === "update") {
+    chrome.tabs.query({ url: "*://*.youtube.com/*" }, (tabs) => {
+      console.log(`Found ${tabs.length} YouTube tabs to reload.`);
+      tabs.forEach((tab) => {
+        chrome.tabs.reload(tab.id, (result) => {
+          if (chrome.runtime.lastError) {
+            console.error(`Error reloading tab ${tab.id}: ${chrome.runtime.lastError.message}`);
+          } else {
+            console.log(`Reloaded tab ${tab.id}`);
+          }
+        });
+      });
+    });
+  }
 });
 
 chrome.runtime.onStartup.addListener(() => {
   console.log("Browser started. Checking active tab...");
 
-  // Get the currently active tab in the current window
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    const activeTab = tabs[0];
-
-    if (activeTab && activeTab.url && activeTab.url.includes("youtube.com")) {
-      console.log("Active YouTube tab detected on startup. Starting timer...");
-      activeTabId = activeTab.id; // Set the active tab ID
-      isYouTubeTab = true;
-      isYouTubeVisible = true;
-
-      startTimer(); // Start the timer for YouTube
-    } else {
-      console.log("No active YouTube tab detected on startup.");
-      isYouTubeTab = false;
-      isYouTubeVisible = false;
-    }
-  });
-
-  // Load remaining time for badge update
-  chrome.storage.local.get(["remainingTime", "dailyLimits"], (data) => {
-    if (data.remainingTime !== undefined || data.dailyLimits !== undefined) {
-      remainingTime = data.remainingTime;
-      updateBadge();
-    } else {
-      loadDefaultSettings();
-    }
-  });
-
-  // Load pause on minimize state from storage
-  chrome.storage.local.get(["pauseOnMinimize"], (data) => {
-    pauseOnMinimize = data.pauseOnMinimize ?? true;
-  });
-
-  chrome.storage.local.get(["resetTime", "alarmTimestamp"], (data) => {
-    const resetTime = data.resetTime || "00:00";
-    const savedTimestamp = data.alarmTimestamp;
-
-    console.log("resetTime:", resetTime);
-    console.log(
-      "savedTimestamp:",
-      savedTimestamp ? new Date(savedTimestamp) : "None"
-    );
-
-    // Calculate the reset timestamp using savedTimestamp if it exists
-    const resetTimestamp = getResetTimestamp(resetTime, savedTimestamp);
-
-    if (Date.now() >= resetTimestamp) {
-      console.log("Reset time has passed. Triggering reset...");
-      resetTimer();
-    }
-
-    // Reschedule the alarm
-    updateAlarm();
-  });
-
-  chrome.storage.local.set({
-    isPaused: undefined,
-    isOverrideActive: undefined,
-  });
-
-  //Tracking Stuff
-  chrome.storage.local.get("timeTracking", (data) => {
-    timeTracking = data.timeTracking;
-    resetDailyTracking();
-  });
+  // Consolidate initialization logic into a single call
+  initializeExtensionState();
 });
 
 // Listen for tab activation (when a tab is clicked or switched to)
 chrome.tabs.onActivated.addListener((activeInfo) => {
   chrome.tabs.get(activeInfo.tabId, (tab) => {
-    activeTabId = tab.id; // Store active tab ID
-    isYouTubeTab = tab.url.includes("youtube.com"); // Check if it's YouTube
-    if (isYouTubeTab && isYouTubeVisible) {
-      console.log("YouTube tab activated. Resuming timer...");
+    // Use timerState
+    timerState.activeTabId = tab.id; // Store active tab ID
+    timerState.isYouTubeTab = tab.url.includes("youtube.com"); // Check if it's YouTube
+
+    // Assume tab becomes visible on activation, then check if we should pause
+    timerState.isYouTubeVisible = true; // Assume visible initially
+
+    if (timerState.isYouTubeTab) { // No need to check isYouTubeVisible here, startTimer handles pausing
+      console.log("YouTube tab activated. Starting timer (will pause if needed)...");
       startTimer();
     } else {
       console.log("Non-YouTube tab activated. Stopping timer...");
-      stopTimer();
+      stopTimer(); // Stop timer if not YouTube
     }
+    // Visibility check logic is now primarily handled by content script sending 'updateVisibility'
   });
 });
 
 // Listen for tab updates (URL or content changes)
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   // Ensure we only process when the tab's URL changes and it's the active tab
-  if (changeInfo.url && tab.active) {
+  // Use timerState
+  if (changeInfo.url && tab.active && tabId === timerState.activeTabId) {
     const isNowYouTube = changeInfo.url.includes("youtube.com");
-    const wasPreviouslyYouTube = isYouTubeTab && tabId === activeTabId;
+    // const wasPreviouslyYouTube = timerState.isYouTubeTab && tabId === timerState.activeTabId; // Already checked activeTabId
 
     if (isNowYouTube) {
       // Update flags and start the timer if it wasn't already running
-      activeTabId = tabId;
-      isYouTubeTab = true;
-      isYouTubeVisible = true;
+      timerState.isYouTubeTab = true;
+      timerState.isYouTubeVisible = true; // Assume visible on URL update
 
-      console.log("YouTube tab detected. Starting timer...");
+      console.log("Active tab updated to YouTube URL. Starting timer...");
       startTimer();
-    } else if (wasPreviouslyYouTube) {
-      // If the tab was previously YouTube but is no longer, stop the timer
-      console.log("YouTube tab updated to non-YouTube. Stopping timer...");
-      isYouTubeTab = false;
+    } else { // If URL changed *away* from YouTube on the active tab
+      console.log("Active tab updated to non-YouTube URL. Stopping timer...");
+      timerState.isYouTubeTab = false;
       stopTimer();
     }
   }
@@ -668,3 +713,104 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     resetTimer();
   }
 });
+
+function initializeExtensionState() {
+  console.log("Initializing extension state...");
+  // Load all necessary settings from storage in one go
+  chrome.storage.local.get(
+    [
+      "dailyLimits",
+      "pauseOnMinimize",
+      "remainingTime",
+      "resetTime",
+      "alarmTimestamp",
+      "timeTracking",
+      "lastTrackedDate", // Needed for resetDailyTracking
+      // Removed isPaused, isOverrideActive as they are transient state managed internally
+    ],
+    (data) => {
+      const day = new Date().toLocaleString("en-US", { weekday: "long" });
+      const defaultDailyLimits = {
+        Monday: 30, Tuesday: 30, Wednesday: 30, Thursday: 30,
+        Friday: 30, Saturday: 30, Sunday: 30
+      };
+      const defaultTimeTracking = {
+        currentYear: 0, currentMonth: 0, currentWeek: 0, today: 0,
+        previousYear: 0, previousMonth: 0, previousWeek: 0, yesterday: 0,
+        totalTimeWatched: 0
+      };
+
+      const dailyLimits = data.dailyLimits || defaultDailyLimits;
+      const dailyLimit = dailyLimits[day] || 30; // Use default 30 if specific day is missing
+      const resetTime = data.resetTime || "00:00";
+
+      // --- Initialize Timer State ---
+      timerState.pauseOnMinimize = data.pauseOnMinimize ?? true;
+      if (data.remainingTime !== undefined) {
+        timerState.remainingTime = data.remainingTime;
+      } else {
+        timerState.remainingTime = dailyLimit * 60; // Default based on today's limit
+        chrome.storage.local.set({ remainingTime: timerState.remainingTime }); // Save if defaulted
+      }
+      timerState.isPaused = false; // Assume not paused initially
+      timerState.isOverrideActive = false; // Assume override not active initially
+      timerState.activeTabId = null; // Reset active tab
+      timerState.isYouTubeTab = false;
+      timerState.isYouTubeVisible = false;
+
+      // --- Initialize Tracking State ---
+      trackingState.timeTracking = data.timeTracking || defaultTimeTracking;
+      // If timeTracking was missing, save the default back
+      if (!data.timeTracking) {
+          chrome.storage.local.set({ timeTracking: defaultTimeTracking });
+      }
+
+      // --- Update UI & Alarms ---
+      updateBadge();
+      updateAlarm(); // Reads resetTime and alarmTimestamp (already loaded in 'data')
+
+      // --- Perform Initial Checks ---
+      // Check if reset time has passed since last run
+      const savedTimestamp = data.alarmTimestamp;
+      const resetTimestamp = getResetTimestamp(resetTime, savedTimestamp);
+      if (Date.now() >= resetTimestamp) {
+        console.log("Reset time has passed since last run. Triggering reset...");
+        resetTimer(); // Reset timer state immediately
+      }
+
+      // Perform daily tracking reset check
+      resetDailyTracking().then(() => {
+        console.log("Daily tracking check complete.");
+        // Now that tracking state is confirmed, check active tab
+        checkActiveTabOnStartup();
+      });
+
+      // Clear potentially stale flags from storage (ensure state object is source of truth)
+      chrome.storage.local.remove(["isPaused", "isOverrideActive"]);
+
+      console.log("Extension state initialized.", { timerState, trackingState });
+    }
+  );
+}
+
+/**
+* Checks the active tab on startup and starts the timer if it's a YouTube tab.
+* Should be called after initial state is loaded.
+*/
+function checkActiveTabOnStartup() {
+ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+   const activeTab = tabs[0];
+
+   if (activeTab && activeTab.url && activeTab.url.includes("youtube.com")) {
+     console.log("Active YouTube tab detected on startup. Starting timer...");
+     timerState.activeTabId = activeTab.id;
+     timerState.isYouTubeTab = true;
+     // Visibility should be reported by content script via 'updateVisibility'
+     // timerState.isYouTubeVisible = true; // Avoid assuming visibility
+     startTimer();
+   } else {
+     console.log("No active YouTube tab detected on startup.");
+     // State already defaults to non-YouTube
+   }
+ });
+}

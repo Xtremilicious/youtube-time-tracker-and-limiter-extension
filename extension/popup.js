@@ -230,6 +230,9 @@ document.addEventListener("DOMContentLoaded", () => {
       toggleIcon.className = "bi bi-arrow-bar-down"; // Change icon
       toggleText.textContent = "Show Usage Insights"; // Change text
     }
+    
+    // Force height recalculation
+    document.body.style.height = "auto";
   });
 
   // Function to format time with singular/plural handling, excluding seconds
