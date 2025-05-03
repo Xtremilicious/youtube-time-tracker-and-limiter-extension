@@ -32,7 +32,17 @@
 
       #popup {
         width: 350px;
+        display: flex;
+        flex-direction: column;
+        max-height: 580px;
+        overflow: hidden;
+      }
+
+      #popup-content {
+        flex-grow: 1;
+        overflow-y: auto;
         padding: 15px;
+        padding-bottom: 10px;
       }
 
       .status-container {
@@ -385,17 +395,14 @@
       #popup-footer {
         display: flex;
         align-items: center;
-        margin-top: 15px;
         font-size: 0.9rem;
         font-weight: 300;
         justify-content: center;
         background-color: #bfa940;
         color: #292a2d;
         padding: 10px 15px;
-        margin-bottom: -15px;
-        margin-left: -15px;
-        margin-right: -15px;
         gap: 5px;
+        flex-shrink: 0;
         #rate {
           cursor: pointer;
           text-decoration: underline;
@@ -425,125 +432,127 @@
 
   <body>
     <div id="popup">
-      <div class="status-container">
-        <span id="status-dot"></span>
-        <h1>YouTube Tracker & Limiter</h1>
-        <span id="close-btn"><i class="bi bi-x-circle"></i></span>
-      </div>
-
-      <div id="time-remaining">
-        <span class="time">00:00</span
-        ><span class="fancy-text">Overridden for ~10 minutes</span>
-      </div>
-      <div class="icon-button-container">
-        <button class="circle-button circle-button-primary" id="override-btn">
-          <i class="bi bi-pause-fill"></i>
-        </button>
-        <button class="circle-button circle-button-secondary" id="settings-btn">
-          <i class="bi bi-gear-fill"></i>
-        </button>
-      </div>
-      <div id="today-stats">
-        <span id="current-date"></span>
-        <div id="today-total-time">
-          <span>Total: </span> <span class="total-time">00:00:00</span>
+      <div id="popup-content">
+        <div class="status-container">
+          <span id="status-dot"></span>
+          <h1>YouTube Tracker & Limiter</h1>
+          <span id="close-btn"><i class="bi bi-x-circle"></i></span>
         </div>
-      </div>
-      <div id="time-tracker-collapsible">
-        <details id="time-tracker-toggle">
-          <summary>
-            <i class="bi bi-arrow-bar-down" id="toggle-icon"></i>
-            <span id="toggle-text">Show Usage Insights</span>
-          </summary>
-          <div id="time-tracker">
-            <div class="time-tracker-section">
-              <div class="time-tracker-context">
-                <div class="time-tracker-context-title">Today</div>
-                <div class="time-tracker-context-subtitle">
-                  vs. Last Active Day
-                </div>
-              </div>
-              <div class="time-tracker-metric">
-                <div
-                  class="time-tracker-metric-title"
-                  id="time-tracker-day-time"
-                >
-                  1hr 2 mins
-                </div>
-                <div
-                  class="time-tracker-metric-subtitle"
-                  id="time-tracker-day-change"
-                >
-                  <span>+69%</span
-                  ><span><i class="bi bi-caret-up-fill"></i></span>
-                </div>
-              </div>
-            </div>
-            <div class="time-tracker-section">
-              <div class="time-tracker-context">
-                <div class="time-tracker-context-title">This week</div>
-                <div class="time-tracker-context-subtitle">vs. Last Week</div>
-              </div>
-              <div class="time-tracker-metric">
-                <div
-                  class="time-tracker-metric-title"
-                  id="time-tracker-week-time"
-                >
-                  1hr 2 mins
-                </div>
-                <div
-                  class="time-tracker-metric-subtitle"
-                  id="time-tracker-week-change"
-                >
-                  <span>+69%</span
-                  ><span><i class="bi bi-caret-up-fill"></i></span>
-                </div>
-              </div>
-            </div>
-            <div class="time-tracker-section">
-              <div class="time-tracker-context">
-                <div class="time-tracker-context-title">This month</div>
-                <div class="time-tracker-context-subtitle">vs. Last Month</div>
-              </div>
-              <div class="time-tracker-metric">
-                <div
-                  class="time-tracker-metric-title"
-                  id="time-tracker-month-time"
-                >
-                  1hr 2 mins
-                </div>
-                <div
-                  class="time-tracker-metric-subtitle"
-                  id="time-tracker-month-change"
-                >
-                  <span>+69%</span
-                  ><span><i class="bi bi-caret-up-fill"></i></span>
-                </div>
-              </div>
-            </div>
-            <div class="time-tracker-section">
-              <div class="time-tracker-context">
-                <div class="time-tracker-context-title">This year</div>
-                <div class="time-tracker-context-subtitle">vs. Last Year</div>
-              </div>
-              <div class="time-tracker-metric">
-                <div
-                  class="time-tracker-metric-title"
-                  id="time-tracker-year-time"
-                >
-                  1hr 2 mins
-                </div>
-                <div
-                  class="time-tracker-metric-subtitle"
-                  id="time-tracker-year-change"
-                >
-                  <span>+69%</span
-                  ><span><i class="bi bi-caret-up-fill"></i></span>
-                </div>
-              </div>
-            </div>
+
+        <div id="time-remaining">
+          <span class="time">00:00</span
+          ><span class="fancy-text">Overridden for ~10 minutes</span>
+        </div>
+        <div class="icon-button-container">
+          <button class="circle-button circle-button-primary" id="override-btn">
+            <i class="bi bi-pause-fill"></i>
+          </button>
+          <button class="circle-button circle-button-secondary" id="settings-btn">
+            <i class="bi bi-gear-fill"></i>
+          </button>
+        </div>
+        <div id="today-stats">
+          <span id="current-date"></span>
+          <div id="today-total-time">
+            <span>Total: </span> <span class="total-time">00:00:00</span>
           </div>
-        </details>
+        </div>
+        <div id="time-tracker-collapsible">
+          <details id="time-tracker-toggle">
+            <summary>
+              <i class="bi bi-arrow-bar-down" id="toggle-icon"></i>
+              <span id="toggle-text">Show Usage Insights</span>
+            </summary>
+            <div id="time-tracker">
+              <div class="time-tracker-section">
+                <div class="time-tracker-context">
+                  <div class="time-tracker-context-title">Today</div>
+                  <div class="time-tracker-context-subtitle">
+                    vs. Last Active Day
+                  </div>
+                </div>
+                <div class="time-tracker-metric">
+                  <div
+                    class="time-tracker-metric-title"
+                    id="time-tracker-day-time"
+                  >
+                    1hr 2 mins
+                  </div>
+                  <div
+                    class="time-tracker-metric-subtitle"
+                    id="time-tracker-day-change"
+                  >
+                    <span>+69%</span
+                    ><span><i class="bi bi-caret-up-fill"></i></span>
+                  </div>
+                </div>
+              </div>
+              <div class="time-tracker-section">
+                <div class="time-tracker-context">
+                  <div class="time-tracker-context-title">This week</div>
+                  <div class="time-tracker-context-subtitle">vs. Last Week</div>
+                </div>
+                <div class="time-tracker-metric">
+                  <div
+                    class="time-tracker-metric-title"
+                    id="time-tracker-week-time"
+                  >
+                    1hr 2 mins
+                  </div>
+                  <div
+                    class="time-tracker-metric-subtitle"
+                    id="time-tracker-week-change"
+                  >
+                    <span>+69%</span
+                    ><span><i class="bi bi-caret-up-fill"></i></span>
+                  </div>
+                </div>
+              </div>
+              <div class="time-tracker-section">
+                <div class="time-tracker-context">
+                  <div class="time-tracker-context-title">This month</div>
+                  <div class="time-tracker-context-subtitle">vs. Last Month</div>
+                </div>
+                <div class="time-tracker-metric">
+                  <div
+                    class="time-tracker-metric-title"
+                    id="time-tracker-month-time"
+                  >
+                    1hr 2 mins
+                  </div>
+                  <div
+                    class="time-tracker-metric-subtitle"
+                    id="time-tracker-month-change"
+                  >
+                    <span>+69%</span
+                    ><span><i class="bi bi-caret-up-fill"></i></span>
+                  </div>
+                </div>
+              </div>
+              <div class="time-tracker-section">
+                <div class="time-tracker-context">
+                  <div class="time-tracker-context-title">This year</div>
+                  <div class="time-tracker-context-subtitle">vs. Last Year</div>
+                </div>
+                <div class="time-tracker-metric">
+                  <div
+                    class="time-tracker-metric-title"
+                    id="time-tracker-year-time"
+                  >
+                    1hr 2 mins
+                  </div>
+                  <div
+                    class="time-tracker-metric-subtitle"
+                    id="time-tracker-year-change"
+                  >
+                    <span>+69%</span
+                    ><span><i class="bi bi-caret-up-fill"></i></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </details>
+        </div>
       </div>
       <div id="popup-footer">
         <span><i class="bi bi-star-fill"></i></span>

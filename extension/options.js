@@ -27,8 +27,16 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("reset-time").value = data.resetTime || "00:00";
       document.getElementById("pause-on-minimize").checked =
         data.pauseOnMinimize ?? true;
-      document.getElementById("override-limit").value =
-        data.overrideLimit || 10;
+
+      // Load overrideLimit, handling 0 correctly
+      let loadedOverrideLimit;
+      if (typeof data.overrideLimit === 'number' && !isNaN(data.overrideLimit)) {
+          loadedOverrideLimit = data.overrideLimit;
+      } else {
+          console.log(`Invalid or missing overrideLimit in storage (${data.overrideLimit}), defaulting input to 10.`);
+          loadedOverrideLimit = 10; // Default to 10 only if invalid/missing
+      }
+      document.getElementById("override-limit").value = loadedOverrideLimit;
 
       const dailyLimits = data.dailyLimits || {};
       const days = [

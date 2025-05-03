@@ -186,10 +186,12 @@ function startTimer() {
 
   // --- Alarm-based Timer Logic --- //
   // Check if the timer should actually start
-  if (timerState.isPaused || timerState.isOverrideActive) {
+  // Only prevent starting if explicitly paused.
+  // Override state is handled within handleTimerTick.
+  if (timerState.isPaused) {
     console.log("Timer state:", timerState);
-    console.log("Timer start condition not met (paused or override active).");
-    return; // Don't start if paused or override is active
+    console.log("Timer start condition not met (paused).");
+    return; // Don't start if paused
   }
 
   console.log("Attempting to start timer alarm.");
@@ -197,7 +199,9 @@ function startTimer() {
   // --- Update lastTickTimestamp on start/restart --- //
   const now = Date.now();
   chrome.storage.local.set({ isPaused: false, lastTickTimestamp: now });
-  console.log("Updated lastTickTimestamp to now to prevent time jump on resume.")
+  console.log(
+    "Updated lastTickTimestamp to now to prevent time jump on resume."
+  );
 
   // Create the repeating alarm
   // We'll use a 1-minute period and handle finer-grained updates within the alarm listener
@@ -370,15 +374,44 @@ function updateTimeTracking(seconds = 1) {
 
 /**
  * Redirect to the blocking page when the timer runs out.
+ * Targets the specific tab being tracked (timerState.activeTabId).
  */
 function redirectToBlockingPage() {
   const blockingPageURL = chrome.runtime.getURL("times-up.html");
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    const activeTab = tabs[0];
-    // Save the current URL (before redirecting) to storage
-    chrome.storage.local.set({ originalUrl: activeTab.url });
-    if (activeTab && activeTab.url.includes("youtube.com")) {
-      chrome.tabs.update(activeTab.id, { url: blockingPageURL });
+  const trackedTabId = timerState.activeTabId;
+
+  if (!trackedTabId) {
+    console.error("redirectToBlockingPage called but no trackedTabId found in state.");
+    return;
+  }
+
+  chrome.tabs.get(trackedTabId, (tab) => {
+    // Check for errors (e.g., tab closed before redirection)
+    if (chrome.runtime.lastError) {
+      console.warn(
+        `Error getting tab ${trackedTabId} for redirection: ${chrome.runtime.lastError.message}. It might have been closed.`
+      );
+      return;
+    }
+
+    // Ensure the tab still exists and is a YouTube tab
+    if (tab && tab.url && tab.url.includes("youtube.com")) {
+      console.log(`Redirecting tracked YouTube tab ${trackedTabId} to blocking page.`);
+      // Save the tracked tab's original URL
+      chrome.storage.local.set({ originalUrl: tab.url }, () => {
+        // Update the tracked tab's URL
+        chrome.tabs.update(trackedTabId, { url: blockingPageURL }, () => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              `Error updating tab ${trackedTabId} to blocking page: ${chrome.runtime.lastError.message}`
+            );
+          }
+        });
+      });
+    } else {
+      console.log(
+        `Did not redirect tab ${trackedTabId}. Tab not found, URL changed, or no longer YouTube.`
+      );
     }
   });
 }
@@ -533,7 +566,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }); // Update timestamp to prevent immediate large tick
 
       // --- Replace setTimeout with alarm --- //
-      const overrideDurationMinutes = message.overrideLimit || 10; // Use passed limit or default
+      // Check if the received limit is a valid number (including 0)
+      let overrideDurationMinutes;
+      if (typeof message.overrideLimit === 'number' && !isNaN(message.overrideLimit)) {
+        overrideDurationMinutes = message.overrideLimit;
+      } else {
+        console.warn(`Invalid or missing overrideLimit in message (${message.overrideLimit}), defaulting to 10.`);
+        overrideDurationMinutes = 10; // Default to 10 only if invalid/missing
+      }
+
+      // *** ADDED LOGGING: Check the value being used ***
+      console.log(
+        `Override requested. Using duration: ${overrideDurationMinutes} minutes (from message.overrideLimit: ${message.overrideLimit})`
+      );
       console.log(
         `Setting override alarm for ${overrideDurationMinutes} minutes.`
       );
@@ -550,8 +595,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
 
       // Also clear the main timer tick alarm while override is active
-      chrome.alarms.clear("timerTickAlarm");
-      console.log("Cleared timerTickAlarm due to override activation.");
+      // chrome.alarms.clear("timerTickAlarm"); // REMOVED: Keep alarm running for tracking
+      // console.log("Cleared timerTickAlarm due to override activation."); // REMOVED
 
       // Clear previous timeout reference if exists (belt and suspenders)
       if (timerState.overrideSetTimout) {
@@ -575,36 +620,50 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "updateVisibility":
       const { isVisible } = message;
-      // Use timerState
-      timerState.isYouTubeVisible = isVisible;
-      timerState.isPaused = !isVisible;
-      chrome.storage.local.set({ isPaused: timerState.isPaused }); // Persist this intent
+      timerState.isYouTubeVisible = isVisible; // Update visibility state
+
       // --- Store visibility state --- //
-      chrome.storage.local.set({
-        isYouTubeVisible: timerState.isYouTubeVisible,
-      });
+      // Store only the visibility, not the pause state yet
+      chrome.storage.local.set({ isYouTubeVisible: timerState.isYouTubeVisible });
+
       console.log(
-        "pauseOnMinimize:",
-        timerState.pauseOnMinimize, // Use timerState
-        "isYouTubeVisible:",
-        timerState.isYouTubeVisible // Use timerState
+        `Visibility updated: isVisible = ${isVisible}, pauseOnMinimize = ${timerState.pauseOnMinimize}`
       );
 
-      // Use timerState
-      if (sender.tab.id === timerState.activeTabId) {
-        if (timerState.isYouTubeVisible) {
-          console.log("YouTube tab is visible. Resuming timer...");
+      // Only act if this message is from the currently active tab
+      if (sender.tab && sender.tab.id === timerState.activeTabId) {
+        if (isVisible) {
+          // Tab became visible: Unpause and start/resume timer
+          console.log("YouTube tab became visible. Ensuring timer is running...");
+          timerState.isPaused = false; // Explicitly set state
+          chrome.storage.local.set({ isPaused: false }); // Persist
           startTimer();
         } else {
+          // Tab became hidden: Check pause setting
           console.log(
-            "YouTube tab is not visible. Checking pauseOnMinimize setting..."
+            "YouTube tab became hidden. Checking pauseOnMinimize setting..."
           );
-          // Use timerState
           if (timerState.pauseOnMinimize) {
+            // Pause is enabled: Pause and stop timer
             console.log("Pausing timer because pauseOnMinimize is true.");
+            timerState.isPaused = true; // Explicitly set state
+            chrome.storage.local.set({ isPaused: true }); // Persist
             stopTimer();
+          } else {
+            // Pause is disabled: Do nothing, timer continues running
+            console.log(
+              "pauseOnMinimize is false. Timer continues running in background."
+            );
+            // Ensure isPaused is false in state if it somehow got set true previously?
+            // Optional: Add safety check if needed, but ideally not required
+            // if (timerState.isPaused) {
+            //   timerState.isPaused = false;
+            //   chrome.storage.local.set({ isPaused: false });
+            // }
           }
         }
+      } else {
+        console.log("Visibility update received from non-active tab, ignoring timer controls.");
       }
       break;
 
@@ -761,9 +820,17 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
     timerState.isYouTubeVisible = true; // Assume visible initially
 
     if (timerState.isYouTubeTab) {
+      // *** MODIFIED CHECK: Redirect only if time is zero AND override is NOT active ***
+      if (timerState.remainingTime <= 0 && !timerState.isOverrideActive) {
+        console.log(
+          "YouTube tab activated, time is zero, no override. Redirecting..."
+        );
+        redirectToBlockingPage();
+        return; // Don't start the timer
+      }
       // No need to check isYouTubeVisible here, startTimer handles pausing
       console.log(
-        "YouTube tab activated. Ensuring timer is not paused and starting..."
+        "YouTube tab activated. Ensuring timer is not paused (or override active) and starting..."
       );
       // --- Explicitly set paused to false on activation before starting --- //
       timerState.isPaused = false;
@@ -795,11 +862,21 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     });
 
     if (isNowYouTube) {
+      // *** MODIFIED CHECK: Redirect only if time is zero AND override is NOT active ***
+      if (timerState.remainingTime <= 0 && !timerState.isOverrideActive) {
+        console.log(
+          "Active tab updated to YouTube URL, time zero, no override. Redirecting..."
+        );
+        redirectToBlockingPage();
+        return; // Don't start the timer
+      }
       // Update flags and start the timer if it wasn't already running
       timerState.isYouTubeTab = true;
       timerState.isYouTubeVisible = true; // Assume visible on URL update
 
-      console.log("Active tab updated to YouTube URL. Starting timer...");
+      console.log(
+        "Active tab updated to YouTube URL. Starting timer (or allowing override)..."
+      );
       startTimer();
     } else {
       // If URL changed *away* from YouTube on the active tab
@@ -827,6 +904,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // --- NEW: Handles the logic for each timer tick --- //
 async function handleTimerTick() {
   console.log("Handling timer tick...");
+
   // Get the current state and last tick time
   const data = await chrome.storage.local.get([
     "remainingTime",
@@ -841,29 +919,46 @@ async function handleTimerTick() {
   timerState.isOverrideActive =
     data.isOverrideActive ?? timerState.isOverrideActive;
 
-  // If paused or override is active, stop the alarm and do nothing more
-  if (timerState.isPaused || timerState.isOverrideActive) {
-    console.log(
-      "Timer tick ignored (paused or override active). Clearing alarm."
-    );
-    chrome.alarms.clear("timerTickAlarm");
-    return;
-  }
-
   const now = Date.now();
   const lastTick = data.lastTickTimestamp || now; // Use now if no previous tick (first run)
   const elapsedSeconds = Math.round((now - lastTick) / 1000);
 
+  // Log state for debugging
+  console.log("Timer tick state:", {
+    isPaused: timerState.isPaused,
+    isOverrideActive: timerState.isOverrideActive,
+    elapsedSeconds: elapsedSeconds,
+    remainingTime: timerState.remainingTime,
+  });
+
+  // 1. Handle insignificant time elapsed
   if (elapsedSeconds <= 0) {
-    console.log("No significant time elapsed since last tick.");
-    // Optional: Ensure alarm is still scheduled for the future if needed
-    // chrome.alarms.create("timerTickAlarm", { delayInMinutes: 1 }); // Or more precise scheduling
+    console.log("No significant time elapsed since last tick. Updating timestamp.");
     await chrome.storage.local.set({ lastTickTimestamp: now }); // Still update timestamp
-    return; // Don't process if no time passed or negative
+    return;
   }
 
-  console.log(`Elapsed seconds since last tick: ${elapsedSeconds}`);
+  // 2. Handle Paused State (No tracking, no timer decrement)
+  if (timerState.isPaused) {
+    console.log("Timer tick ignored (paused). Clearing alarm and updating timestamp.");
+    chrome.alarms.clear("timerTickAlarm");
+    await chrome.storage.local.set({ lastTickTimestamp: now }); // Update timestamp to prevent jump on resume
+    return;
+  }
 
+  // 3. If NOT Paused, tracking SHOULD occur
+  console.log("Timer not paused. Updating tracking...");
+  updateTimeTracking(elapsedSeconds); // Update by actual elapsed time
+
+  // 4. Handle Override State (Tracking done, no timer decrement)
+  if (timerState.isOverrideActive) {
+    console.log("Override active. Tracking done, only updating timestamp.");
+    await chrome.storage.local.set({ lastTickTimestamp: now }); // Store current time as the last tick
+    return; // Skip timer decrement and badge update
+  }
+
+  // 5. Handle Timer Running Normally (Not paused, not override)
+  console.log("Timer running normally.");
   if (timerState.remainingTime > 0) {
     timerState.remainingTime -= elapsedSeconds;
     if (timerState.remainingTime < 0) timerState.remainingTime = 0;
@@ -871,9 +966,6 @@ async function handleTimerTick() {
     console.log(
       `Decrementing time. New remainingTime: ${timerState.remainingTime}`
     );
-
-    // Update tracking state as well
-    updateTimeTracking(elapsedSeconds); // Update by actual elapsed time
 
     // Update badge and store new state
     updateBadge();
@@ -893,9 +985,10 @@ async function handleTimerTick() {
       // otherwise rely on the 1-minute periodInMinutes
     }
   } else {
-    // Time was already 0, ensure alarm is cleared
+    // Time was already 0 when tick occurred
     console.log("Timer tick handled, but time was already 0. Clearing alarm.");
     chrome.alarms.clear("timerTickAlarm");
+    await chrome.storage.local.set({ lastTickTimestamp: now }); // Still update timestamp
   }
 }
 
@@ -904,8 +997,15 @@ async function handleOverrideEnd() {
   console.log("Override period ended.");
   timerState.isOverrideActive = false;
   await chrome.storage.local.set({ isOverrideActive: false });
-  clearTimeout(timerState.overrideSetTimout); // Clear timeout reference (though alarm is primary now)
+  clearTimeout(timerState.overrideSetTimout); // Clear legacy timeout reference
   timerState.overrideSetTimout = null;
+
+  // *** ADDED CHECK: If time is still zero after override ends, redirect immediately ***
+  if (timerState.remainingTime <= 0) {
+    console.log("Override ended, but time is still zero. Redirecting...");
+    redirectToBlockingPage();
+    return; // Don't proceed to potentially start the timer
+  }
 
   // Check if the timer should restart now that override is off
   // Requires knowing if YouTube tab is active/visible
@@ -947,7 +1047,7 @@ async function initializeExtensionState() {
     "timeTracking",
     "lastTrackedDate", // Needed for resetDailyTracking
     "isPaused", // Load stored pause state
-    "isOverrideActive", // Load stored override state
+    // "isOverrideActive", // Load stored override state -> DO NOT LOAD, reset instead
     "activeTabId", // Load tab state
     "isYouTubeTab", // Load tab state
     "isYouTubeVisible", // Load tab state
@@ -988,9 +1088,12 @@ async function initializeExtensionState() {
     timerState.remainingTime = dailyLimit * 60; // Default based on today's limit
     chrome.storage.local.set({ remainingTime: timerState.remainingTime }); // Save if defaulted
   }
-  // Load persisted state for pause and override
+  // Load persisted state for pause
   timerState.isPaused = data.isPaused ?? false;
-  timerState.isOverrideActive = data.isOverrideActive ?? false;
+  // *** Reset override state on initialization ***
+  timerState.isOverrideActive = false;
+  chrome.storage.local.set({ isOverrideActive: false }); // Ensure storage reflects reset state
+
   timerState.activeTabId = data.activeTabId || null;
   timerState.isYouTubeTab = data.isYouTubeTab ?? false;
   timerState.isYouTubeVisible = data.isYouTubeVisible ?? false;
@@ -1078,3 +1181,70 @@ function checkActiveTabOnStartup() {
 // Initialize the extension state whenever the background script starts
 // This covers browser startup, extension update, and manual enable.
 initializeExtensionState();
+
+// Listen for changes in chrome storage
+chrome.storage.onChanged.addListener(async (changes, areaName) => {
+  if (areaName === "local") {
+    // Check for pause state change
+    if (changes.isPaused) {
+      // Update the internal state if it changed externally (unlikely but possible)
+      // No action needed usually, as internal state drives behavior.
+      console.log("isPaused changed in storage:", changes.isPaused.newValue);
+      timerState.isPaused = changes.isPaused.newValue;
+    }
+
+    // Check for override state change (e.g., from blocking page)
+    if (changes.isOverrideActive) {
+      // Update internal state if it changed externally
+      console.log(
+        "isOverrideActive changed in storage:",
+        changes.isOverrideActive.newValue
+      );
+      timerState.isOverrideActive = changes.isOverrideActive.newValue;
+      // Potentially update UI or alarms if needed based on external change
+      // For now, assuming activateOverride/handleOverrideEnd manage state correctly.
+    }
+
+    // Check if overrideLimit setting changed
+    if (changes.overrideLimit) {
+      console.log(
+        "overrideLimit changed in storage to:",
+        changes.overrideLimit.newValue
+      );
+      // If an override was active when the setting changed, cancel it.
+      if (timerState.isOverrideActive) {
+        console.log(
+          "Override limit setting changed while override active. Cancelling current override."
+        );
+        await chrome.alarms.clear(timerState.overrideAlarmName); // Clear the override end alarm
+        timerState.isOverrideActive = false; // Update state
+        await chrome.storage.local.set({ isOverrideActive: false }); // Persist state
+
+        // Now determine what should happen: redirect or restart timer?
+        if (timerState.remainingTime <= 0) {
+          console.log(
+            "Override cancelled, time is zero. Redirecting to blocking page."
+          );
+          redirectToBlockingPage();
+        } else if (
+          !timerState.isPaused &&
+          timerState.isYouTubeTab &&
+          timerState.isYouTubeVisible
+        ) {
+          // If timer should be running now override is off
+          console.log(
+            "Override cancelled, timer should be running. Starting timer."
+          );
+          startTimer(); // This will recreate the timerTickAlarm if needed
+        } else {
+          console.log(
+            "Override cancelled, conditions not met to restart timer."
+          );
+        }
+      }
+    }
+
+    // You might add listeners for other settings changes here if needed
+    // e.g., resetTime, dailyLimits, pauseOnMinimize
+  }
+});

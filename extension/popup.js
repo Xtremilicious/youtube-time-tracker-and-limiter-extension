@@ -36,7 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("rate").addEventListener("click", () => {
     const ratePageURL =
-      "https://addons.mozilla.org/en-US/firefox/addon/youtube-time-tracker-limiter";
+      "https://chromewebstore.google.com/detail/youtube-time-tracker-and/kekmokmelblilhedboeblkkkgmkifbmk";
     window.open(ratePageURL, "_blank");
   });
 
@@ -177,19 +177,26 @@ document.addEventListener("DOMContentLoaded", () => {
   // Listen for changes in chrome storage
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === "local") {
-      if (changes.isPaused) {
-        updateStatusDot(
-          changes.isPaused.newValue,
-          changes.isOverrideActive ? changes.isOverrideActive.newValue : false
+      // Check if either isPaused or isOverrideActive has changed
+      if (changes.isPaused || changes.isOverrideActive) {
+        console.log(
+          "Storage change detected for isPaused or isOverrideActive:",
+          changes
         );
+        // Get the *current* values of both from storage to ensure consistency
+        chrome.storage.local.get(["isPaused", "isOverrideActive"], (data) => {
+          console.log("Updating status dot with fresh data:", data);
+          // Call updateStatusDot with the latest values
+          // Default to false if a value is somehow missing (shouldn't happen often)
+          updateStatusDot(
+            data.isPaused ?? false,
+            data.isOverrideActive ?? false
+          );
+        });
       }
 
-      if (changes.isOverrideActive) {
-        updateStatusDot(
-          changes.isPaused ? changes.isPaused.newValue : true,
-          changes.isOverrideActive.newValue
-        );
-      }
+      // Optional: Handle timeTracking changes if needed for the UI elements updated by the interval
+      // if (changes.timeTracking) { ... }
     }
   });
 
@@ -230,7 +237,7 @@ document.addEventListener("DOMContentLoaded", () => {
       toggleIcon.className = "bi bi-arrow-bar-down"; // Change icon
       toggleText.textContent = "Show Usage Insights"; // Change text
     }
-    
+
     // Force height recalculation
     document.body.style.height = "auto";
   });
