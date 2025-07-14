@@ -1,15 +1,15 @@
 // Define state objects
 let timerState = {
-  remainingTime: 0, // Remaining time in seconds
   activeTabId: null, // ID of the active tab
   isOverrideActive: false, // Flag to track override state
-  pauseOnMinimize: true, // Initialize with default true
   isPaused: false, // Flag to track if timer is paused
-  // timerInterval: null, // REMOVED: Interval ID for the timer (Replaced by alarm)
-  overrideAlarmName: "overrideEndAlarm", // Name for the override alarm
-  overrideSetTimout: null, // Timeout for override duration - TO BE REPLACED by alarm
+  isWindowMinimized: false, // Flag to track if window is minimized
   isYouTubeTab: false, // Flag to track if the active tab is YouTube
   isYouTubeVisible: false, // Flag to track if YouTube is visible in the active tab
+  overrideAlarmName: "overrideEndAlarm", // Name for the override alarm
+  overrideSetTimout: null, // Timeout for override duration - TO BE REPLACED by alarm
+  pauseOnMinimize: true, // Initialize with default true
+  remainingTime: 0, // Remaining time in seconds
 };
 
 let trackingState = {
@@ -208,31 +208,7 @@ function startTimer() {
   chrome.alarms.create("timerTickAlarm", { periodInMinutes: 1 / 60 });
   console.log("Created/updated timerTickAlarm with 1-minute period.");
 
-  // Initial tick might be needed if logic depends on immediate decrement
-  // For now, rely on the first alarm trigger
-
   updateBadge(); // Update badge immediately to reflect potential state change
-
-  // --- Removed setInterval logic --- //
-  /*
-  if (!timerState.timerInterval) {
-    console.log("Starting the timer");
-    timerState.timerInterval = setInterval(() => {
-      // ... interval logic ...
-    }, 1000);
-    timerState.isPaused = false; // Update state directly
-    chrome.storage.local.set({ isPaused: false }); // Update storage
-  }
-  */
-
-  // Tracking interval is also removed - will be handled by timerTickAlarm
-  /*
-  if (!trackingState.trackerTimerInterval) {
-    trackingState.trackerTimerInterval = setInterval(() => {
-      // ... tracking logic ...
-    }, 1000);
-  }
-  */
 }
 
 // Format time for display (HH:MM:SS)
@@ -341,34 +317,28 @@ function resetDailyTracking() {
 function updateTimeTracking(seconds = 1) {
   console.log("Updating time tracking...");
 
-  if (trackingState.isResetting) return; // Prevent concurrent reset using state object
+  if (trackingState.isResetting) return; // Prevent concurrent updates
 
   trackingState.isResetting = true;
 
-  resetDailyTracking().then(() => {
-    // No need to get again if resetDailyTracking updates trackingState.timeTracking
-    // Use the state variable directly which was updated by resetDailyTracking or initialized
-    const localTimeTracking = trackingState.timeTracking || {}; // Use state
+  // Use the state variable directly
+  const localTimeTracking = trackingState.timeTracking || {};
 
-    // Update timeTracking values in state
-    const updatedValues = { ...localTimeTracking };
-    updatedValues.today = (localTimeTracking.today || 0) + seconds;
-    updatedValues.totalTimeWatched =
-      (localTimeTracking.totalTimeWatched || 0) + seconds;
+  // Update timeTracking values in state
+  const updatedValues = { ...localTimeTracking };
+  updatedValues.today = (localTimeTracking.today || 0) + seconds;
+  updatedValues.totalTimeWatched =
+    (localTimeTracking.totalTimeWatched || 0) + seconds;
+  updatedValues.currentYear = (localTimeTracking.currentYear || 0) + seconds;
+  updatedValues.currentMonth =
+    (localTimeTracking.currentMonth || 0) + seconds;
+  updatedValues.currentWeek = (localTimeTracking.currentWeek || 0) + seconds;
 
-    // Directly update currentYear, currentMonth, currentWeek without comparisons
-    updatedValues.currentYear = (localTimeTracking.currentYear || 0) + seconds;
-    updatedValues.currentMonth =
-      (localTimeTracking.currentMonth || 0) + seconds;
-    updatedValues.currentWeek = (localTimeTracking.currentWeek || 0) + seconds;
-
-    // Save updated values
-    chrome.storage.local.set({ timeTracking: updatedValues }, () => {
-      console.log("Time tracking updated:", updatedValues);
-      trackingState.timeTracking = updatedValues; // Update state after saving
-      trackingState.isResetting = false; // Release lock
-    });
-    // Removed the redundant get call
+  // Save updated values
+  chrome.storage.local.set({ timeTracking: updatedValues }, () => {
+    console.log("Time tracking updated:", updatedValues);
+    trackingState.timeTracking = updatedValues; // Update state after saving
+    trackingState.isResetting = false; // Release lock
   });
 }
 
@@ -381,7 +351,9 @@ function redirectToBlockingPage() {
   const trackedTabId = timerState.activeTabId;
 
   if (!trackedTabId) {
-    console.error("redirectToBlockingPage called but no trackedTabId found in state.");
+    console.error(
+      "redirectToBlockingPage called but no trackedTabId found in state."
+    );
     return;
   }
 
@@ -396,7 +368,9 @@ function redirectToBlockingPage() {
 
     // Ensure the tab still exists and is a YouTube tab
     if (tab && tab.url && tab.url.includes("youtube.com")) {
-      console.log(`Redirecting tracked YouTube tab ${trackedTabId} to blocking page.`);
+      console.log(
+        `Redirecting tracked YouTube tab ${trackedTabId} to blocking page.`
+      );
       // Save the tracked tab's original URL
       chrome.storage.local.set({ originalUrl: tab.url }, () => {
         // Update the tracked tab's URL
@@ -433,23 +407,6 @@ function stopTimer() {
   timerState.isPaused = true; // Update state directly
   console.log("Timer stopped (alarm cleared)");
   chrome.storage.local.set({ isPaused: true }); // Update storage
-
-  // --- Removed setInterval logic --- //
-  /*
-  clearInterval(timerState.timerInterval);
-  timerState.timerInterval = null;
-  timerState.isPaused = true; // Update state directly
-  console.log("Timer stopped");
-  chrome.storage.local.set({ isPaused: true }); // Update storage
-  */
-
-  // Tracking interval is also removed - handled by timerTickAlarm
-  /*
-  if (trackingState.trackerTimerInterval) {
-    clearInterval(trackingState.trackerTimerInterval);
-    trackingState.trackerTimerInterval = null;
-  }
-  */
 }
 
 /**
@@ -568,10 +525,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // --- Replace setTimeout with alarm --- //
       // Check if the received limit is a valid number (including 0)
       let overrideDurationMinutes;
-      if (typeof message.overrideLimit === 'number' && !isNaN(message.overrideLimit)) {
+      if (
+        typeof message.overrideLimit === "number" &&
+        !isNaN(message.overrideLimit)
+      ) {
         overrideDurationMinutes = message.overrideLimit;
       } else {
-        console.warn(`Invalid or missing overrideLimit in message (${message.overrideLimit}), defaulting to 10.`);
+        console.warn(
+          `Invalid or missing overrideLimit in message (${message.overrideLimit}), defaulting to 10.`
+        );
         overrideDurationMinutes = 10; // Default to 10 only if invalid/missing
       }
 
@@ -594,76 +556,54 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         );
       });
 
-      // Also clear the main timer tick alarm while override is active
-      // chrome.alarms.clear("timerTickAlarm"); // REMOVED: Keep alarm running for tracking
-      // console.log("Cleared timerTickAlarm due to override activation."); // REMOVED
-
       // Clear previous timeout reference if exists (belt and suspenders)
       if (timerState.overrideSetTimout) {
         clearTimeout(timerState.overrideSetTimout);
         timerState.overrideSetTimout = null;
       }
-      /* --- Remove old setTimeout logic ---
-      if (timerState.overrideSetTimout) {
-         clearTimeout(timerState.overrideSetTimout);
-      }
-      timerState.overrideSetTimout = setTimeout(() => {
-        timerState.isOverrideActive = false;
-        chrome.storage.local.set({ isOverrideActive: false });
-        // Check timerState flags before starting
-        if (timerState.isYouTubeTab && timerState.isYouTubeVisible) {
-          startTimer();
-        }
-      }, message.overrideLimit * 60 * 1000); // Override lasts for overrideLimit minutes
-      */
       break;
 
     case "updateVisibility":
-      const { isVisible } = message;
-      timerState.isYouTubeVisible = isVisible; // Update visibility state
+      const isVisible = message.isVisible && !timerState.isWindowMinimized;
+      timerState.isYouTubeVisible = isVisible;
 
-      // --- Store visibility state --- //
-      // Store only the visibility, not the pause state yet
-      chrome.storage.local.set({ isYouTubeVisible: timerState.isYouTubeVisible });
+      // Store visibility state
+      chrome.storage.local.set({
+        isYouTubeVisible: timerState.isYouTubeVisible,
+      });
 
       console.log(
-        `Visibility updated: isVisible = ${isVisible}, pauseOnMinimize = ${timerState.pauseOnMinimize}`
+        `Visibility updated: isVisible = ${isVisible}, pauseOnMinimize = ${timerState.pauseOnMinimize}, isWindowMinimized = ${timerState.isWindowMinimized}`
       );
 
       // Only act if this message is from the currently active tab
       if (sender.tab && sender.tab.id === timerState.activeTabId) {
         if (isVisible) {
-          // Tab became visible: Unpause and start/resume timer
-          console.log("YouTube tab became visible. Ensuring timer is running...");
-          timerState.isPaused = false; // Explicitly set state
-          chrome.storage.local.set({ isPaused: false }); // Persist
+          console.log(
+            "YouTube tab became visible. Ensuring timer is running..."
+          );
+          timerState.isPaused = false;
+          chrome.storage.local.set({ isPaused: false });
           startTimer();
         } else {
-          // Tab became hidden: Check pause setting
           console.log(
             "YouTube tab became hidden. Checking pauseOnMinimize setting..."
           );
           if (timerState.pauseOnMinimize) {
-            // Pause is enabled: Pause and stop timer
             console.log("Pausing timer because pauseOnMinimize is true.");
-            timerState.isPaused = true; // Explicitly set state
-            chrome.storage.local.set({ isPaused: true }); // Persist
+            timerState.isPaused = true;
+            chrome.storage.local.set({ isPaused: true });
             stopTimer();
           } else {
-            // Pause is disabled: Do nothing, timer continues running
             console.log(
               "pauseOnMinimize is false. Timer continues running in background."
             );
-            // Ensure isPaused is false in state if it somehow got set true previously?
-            // Optional: Add safety check if needed, but ideally not required
-            // if (timerState.isPaused) {
-            //   timerState.isPaused = false;
-            //   chrome.storage.local.set({ isPaused: false });
-            // }
           }
         }
       } else {
-        console.log("Visibility update received from non-active tab, ignoring timer controls.");
+        console.log(
+          "Visibility update received from non-active tab, ignoring timer controls."
+        );
       }
       break;
 
@@ -898,6 +838,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     handleTimerTick();
   } else if (alarm.name === timerState.overrideAlarmName) {
     handleOverrideEnd();
+  } else if (alarm.name === "trackingResetAlarm") {
+    console.log("Tracking reset alarm triggered. Resetting daily tracking...");
+    resetDailyTracking();
   }
 });
 
@@ -933,14 +876,18 @@ async function handleTimerTick() {
 
   // 1. Handle insignificant time elapsed
   if (elapsedSeconds <= 0) {
-    console.log("No significant time elapsed since last tick. Updating timestamp.");
+    console.log(
+      "No significant time elapsed since last tick. Updating timestamp."
+    );
     await chrome.storage.local.set({ lastTickTimestamp: now }); // Still update timestamp
     return;
   }
 
   // 2. Handle Paused State (No tracking, no timer decrement)
   if (timerState.isPaused) {
-    console.log("Timer tick ignored (paused). Clearing alarm and updating timestamp.");
+    console.log(
+      "Timer tick ignored (paused). Clearing alarm and updating timestamp."
+    );
     chrome.alarms.clear("timerTickAlarm");
     await chrome.storage.local.set({ lastTickTimestamp: now }); // Update timestamp to prevent jump on resume
     return;
@@ -1045,14 +992,15 @@ async function initializeExtensionState() {
     "resetTime",
     "alarmTimestamp",
     "timeTracking",
-    "lastTrackedDate", // Needed for resetDailyTracking
-    "isPaused", // Load stored pause state
-    // "isOverrideActive", // Load stored override state -> DO NOT LOAD, reset instead
-    "activeTabId", // Load tab state
-    "isYouTubeTab", // Load tab state
-    "isYouTubeVisible", // Load tab state
-    // Removed isPaused, isOverrideActive as they are transient state managed internally -> RE-ADDED for restart logic
+    "lastTrackedDate",
+    "isPaused",
+    "activeTabId",
+    "isYouTubeTab",
+    "isYouTubeVisible",
   ]);
+
+  // Set up tracking reset alarm for midnight
+  setupTrackingResetAlarm();
 
   const day = new Date().toLocaleString("en-US", { weekday: "long" });
   const defaultDailyLimits = {
@@ -1151,33 +1099,6 @@ async function initializeExtensionState() {
   console.log("Extension state initialized.", { timerState, trackingState });
 }
 
-/**
- * Checks the active tab on startup and starts the timer if it's a YouTube tab.
- * Should be called after initial state is loaded.
- * --- REMOVED - Logic integrated into initializeExtensionState ---
- */
-/*
-function checkActiveTabOnStartup() {
- chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-   const activeTab = tabs[0];
-
-   if (activeTab && activeTab.url && activeTab.url.includes("youtube.com")) {
-     console.log("Active YouTube tab detected on startup. Starting timer...");
-     timerState.activeTabId = activeTab.id;
-     timerState.isYouTubeTab = true;
-     // Visibility should be reported by content script via 'updateVisibility'
-     // timerState.isYouTubeVisible = true; // Avoid assuming visibility
-     // --- Log State Before Starting Timer ---
-     console.log(`[Startup Check] Before calling startTimer: remainingTime = ${timerState.remainingTime}`);
-     startTimer();
-   } else {
-     console.log("No active YouTube tab detected on startup.");
-     // State already defaults to non-YouTube
-   }
- });
-}
-*/
-
 // Initialize the extension state whenever the background script starts
 // This covers browser startup, extension update, and manual enable.
 initializeExtensionState();
@@ -1248,3 +1169,84 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     // e.g., resetTime, dailyLimits, pauseOnMinimize
   }
 });
+
+// Listen for window focus changes
+chrome.windows.onFocusChanged.addListener((windowId) => {
+  const isMinimized = windowId === chrome.windows.WINDOW_ID_NONE;
+  timerState.isWindowMinimized = isMinimized;
+  
+  console.log(`Window focus changed. Minimized: ${isMinimized}`);
+
+  // When window is unminimized, check if we should resume the timer
+  if (!isMinimized && timerState.isYouTubeTab && timerState.isYouTubeVisible) {
+    console.log("Window unminimized with visible YouTube tab, resuming timer...");
+    timerState.isPaused = false;
+    chrome.storage.local.set({ isPaused: false });
+    startTimer();
+  } else if (isMinimized && timerState.pauseOnMinimize) {
+    console.log("Window minimized, pausing timer...");
+    timerState.isPaused = true;
+    chrome.storage.local.set({ isPaused: true });
+    stopTimer();
+  }
+});
+
+// Function to update tab visibility considering both document visibility and window state
+function updateTabVisibility() {
+  const isVisible = !timerState.isWindowMinimized && timerState.isYouTubeVisible;
+  
+  if (timerState.isYouTubeTab) {
+    if (isVisible && !timerState.isPaused) {
+      console.log("Tab is visible and not paused, starting timer...");
+      startTimer();
+    } else if (!isVisible && timerState.pauseOnMinimize) {
+      console.log("Tab is not visible and pauseOnMinimize is true, stopping timer...");
+      stopTimer();
+    }
+  }
+}
+
+// Update the existing handleVisibilityChange function to consider window state
+function handleVisibilityChange(isVisible) {
+  timerState.isYouTubeVisible = isVisible;
+
+  // If window is minimized, force isVisible to false
+  if (timerState.isWindowMinimized) {
+    timerState.isYouTubeVisible = false;
+  }
+
+  // Update pause state based on visibility if pauseOnMinimize is enabled
+  if (timerState.pauseOnMinimize) {
+    timerState.isPaused = !timerState.isYouTubeVisible;
+  }
+
+  // Notify content script of the current state
+  if (timerState.activeTabId) {
+    chrome.tabs
+      .sendMessage(timerState.activeTabId, {
+        action: "visibilityStateUpdate",
+        isVisible: timerState.isYouTubeVisible,
+        isPaused: timerState.isPaused,
+      })
+      .catch((err) =>
+        console.log("Error sending visibility update to content script:", err)
+      );
+  }
+}
+
+// --- Function to schedule tracking reset at midnight --- //
+function setupTrackingResetAlarm() {
+  // Clear any existing tracking reset alarm
+  chrome.alarms.clear("trackingResetAlarm", () => {
+    const now = new Date();
+    // Set alarm for next midnight
+    const midnight = new Date(now);
+    midnight.setHours(24, 0, 0, 0);
+    
+    chrome.alarms.create("trackingResetAlarm", {
+      when: midnight.getTime(),
+      periodInMinutes: 1440 // Repeat daily
+    });
+    console.log("Tracking reset alarm set for:", midnight);
+  });
+}
