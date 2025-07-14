@@ -2,7 +2,14 @@
   "manifest_version": 3,
   "name": "YouTube Time Tracker and Limiter",
   "version": "0.4.1",
-  "permissions": ["tabs", "storage", "alarms", "activeTab", "notifications"],
+  "permissions": [
+    "tabs",
+    "storage",
+    "alarms",
+    "activeTab",
+    "notifications",
+    "windows"
+  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -21,14 +28,22 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*.youtube.com/*"],
-      "js": ["content.js"]
+      "matches": [
+        "*://*.youtube.com/*"
+      ],
+      "js": [
+        "content.js"
+      ]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["times-up.html"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "times-up.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

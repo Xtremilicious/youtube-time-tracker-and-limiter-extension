@@ -786,43 +786,50 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 
 // Listen for tab updates (URL or content changes)
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // Ensure we only process when the tab's URL changes and it's the active tab
-  // Use timerState
-  if (changeInfo.url && tab.active && tabId === timerState.activeTabId) {
-    const isNowYouTube = changeInfo.url.includes("youtube.com");
-    // const wasPreviouslyYouTube = timerState.isYouTubeTab && tabId === timerState.activeTabId; // Already checked activeTabId
+  console.log("Tab updated:", tabId, changeInfo, tab);
 
-    // --- Store potentially changed tab state --- //
-    timerState.isYouTubeTab = isNowYouTube;
-    timerState.isYouTubeVisible = true; // Assume visible on URL update
-    chrome.storage.local.set({
-      isYouTubeTab: timerState.isYouTubeTab,
-      isYouTubeVisible: timerState.isYouTubeVisible,
-      // activeTabId doesn't change here
-    });
+  // Check if this update is for the active tab
+  if (tab.active && tabId === timerState.activeTabId) {
+    // Get the URL either from changeInfo (if changed) or from tab.url (current URL)
+    const currentURL = changeInfo.url || tab.url;
+    const isNowYouTube = currentURL && currentURL.includes("youtube.com");
 
-    if (isNowYouTube) {
-      // *** MODIFIED CHECK: Redirect only if time is zero AND override is NOT active ***
-      if (timerState.remainingTime <= 0 && !timerState.isOverrideActive) {
-        console.log(
-          "Active tab updated to YouTube URL, time zero, no override. Redirecting..."
-        );
-        redirectToBlockingPage();
-        return; // Don't start the timer
-      }
-      // Update flags and start the timer if it wasn't already running
-      timerState.isYouTubeTab = true;
+    // Only proceed if we have a valid URL to check
+    if (currentURL) {
+      // --- Store potentially changed tab state --- //
+      timerState.isYouTubeTab = isNowYouTube;
       timerState.isYouTubeVisible = true; // Assume visible on URL update
+      chrome.storage.local.set({
+        isYouTubeTab: timerState.isYouTubeTab,
+        isYouTubeVisible: timerState.isYouTubeVisible,
+        // activeTabId doesn't change here
+      });
 
-      console.log(
-        "Active tab updated to YouTube URL. Starting timer (or allowing override)..."
-      );
-      startTimer();
+      if (isNowYouTube) {
+        // *** MODIFIED CHECK: Redirect only if time is zero AND override is NOT active ***
+        if (timerState.remainingTime <= 0 && !timerState.isOverrideActive) {
+          console.log(
+            "Active tab updated to YouTube URL, time zero, no override. Redirecting..."
+          );
+          redirectToBlockingPage();
+          return; // Don't start the timer
+        }
+        // Update flags and start the timer if it wasn't already running
+        timerState.isYouTubeTab = true;
+        timerState.isYouTubeVisible = true; // Assume visible on URL update
+
+        console.log(
+          "Active tab updated to YouTube URL. Starting timer (or allowing override)..."
+        );
+        startTimer();
+      } else {
+        // If URL changed *away* from YouTube on the active tab
+        console.log("Active tab updated to non-YouTube URL. Stopping timer...");
+        timerState.isYouTubeTab = false;
+        stopTimer();
+      }
     } else {
-      // If URL changed *away* from YouTube on the active tab
-      console.log("Active tab updated to non-YouTube URL. Stopping timer...");
-      timerState.isYouTubeTab = false;
-      stopTimer();
+      console.log("Tab update received but no valid URL available, maintaining current state");
     }
   }
 });
@@ -841,6 +848,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   } else if (alarm.name === "trackingResetAlarm") {
     console.log("Tracking reset alarm triggered. Resetting daily tracking...");
     resetDailyTracking();
+  } else if (alarm.name === "checkMinimizedState") {
+    checkIfMinimized();
   }
 });
 
@@ -982,7 +991,14 @@ async function initializeExtensionState() {
   // --- Clear existing alarms on startup --- //
   await chrome.alarms.clear("timerTickAlarm");
   await chrome.alarms.clear(timerState.overrideAlarmName);
+  await chrome.alarms.clear("checkMinimizedState");
   console.log("Cleared any existing timer or override alarms.");
+
+  // Set up minimize check alarm
+  chrome.alarms.create('checkMinimizedState', {
+    periodInMinutes: 1 / 60  // Check every second (minimum allowed by Chrome)
+  });
+  console.log("Created minimize check alarm");
 
   // Load all necessary settings from storage in one go
   const data = await chrome.storage.local.get([
@@ -1097,6 +1113,37 @@ async function initializeExtensionState() {
   // chrome.storage.local.remove(["isPaused", "isOverrideActive"]); -> Keep for now for init logic
 
   console.log("Extension state initialized.", { timerState, trackingState });
+
+  // Add verification step after a short delay to ensure content scripts are loaded
+  setTimeout(verifyYouTubeState, 2000);
+}
+
+async function verifyYouTubeState() {
+  // Query for any active YouTube tabs
+  const youtubeTabs = await chrome.tabs.query({ url: "*://*.youtube.com/*", active: true });
+
+  if (youtubeTabs.length > 0) {
+    const activeYouTubeTab = youtubeTabs[0];
+    console.log("Found active YouTube tab during startup verification:", activeYouTubeTab);
+
+    // Update state
+    timerState.activeTabId = activeYouTubeTab.id;
+    timerState.isYouTubeTab = true;
+    timerState.isYouTubeVisible = true; // Assume visible initially, content script will update
+
+    // Store state
+    await chrome.storage.local.set({
+      activeTabId: timerState.activeTabId,
+      isYouTubeTab: true,
+      isYouTubeVisible: true
+    });
+
+    // If conditions are right, ensure timer is running
+    if (timerState.remainingTime > 0 && !timerState.isPaused && !timerState.isOverrideActive) {
+      console.log("Starting timer for active YouTube tab found during startup verification");
+      startTimer();
+    }
+  }
 }
 
 // Initialize the extension state whenever the background script starts
@@ -1170,31 +1217,93 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
   }
 });
 
-// Listen for window focus changes
-chrome.windows.onFocusChanged.addListener((windowId) => {
-  const isMinimized = windowId === chrome.windows.WINDOW_ID_NONE;
-  timerState.isWindowMinimized = isMinimized;
-  
-  console.log(`Window focus changed. Minimized: ${isMinimized}`);
+// // Listen for window focus changes
+// chrome.windows.onFocusChanged.addListener(async (windowId) => {
+//   // Only check state if it's not WINDOW_ID_NONE (which can be triggered by address bar, devtools, etc)
+//   if (windowId !== chrome.windows.WINDOW_ID_NONE) {
+//     try {
+//       const window = await chrome.windows.get(windowId);
+//       console.log("Window focus changed:", window);
+//       // Check if window is actually minimized using the state property
+//       const isMinimized = window.state === 'minimized';
 
-  // When window is unminimized, check if we should resume the timer
-  if (!isMinimized && timerState.isYouTubeTab && timerState.isYouTubeVisible) {
-    console.log("Window unminimized with visible YouTube tab, resuming timer...");
-    timerState.isPaused = false;
-    chrome.storage.local.set({ isPaused: false });
-    startTimer();
-  } else if (isMinimized && timerState.pauseOnMinimize) {
-    console.log("Window minimized, pausing timer...");
-    timerState.isPaused = true;
-    chrome.storage.local.set({ isPaused: true });
-    stopTimer();
+//       if (timerState.isWindowMinimized !== isMinimized) {
+//         timerState.isWindowMinimized = isMinimized;
+//         console.log(`Window state changed. Minimized: ${isMinimized}, State: ${window.state}`);
+
+//         // When window is unminimized, check if we should resume the timer
+//         if (!isMinimized && timerState.isYouTubeTab && timerState.isYouTubeVisible) {
+//           console.log("Window unminimized with visible YouTube tab, resuming timer...");
+//           timerState.isPaused = false;
+//           chrome.storage.local.set({ isPaused: false });
+//           startTimer();
+//         } else if (isMinimized && timerState.pauseOnMinimize) {
+//           console.log("Window minimized, pausing timer...");
+//           timerState.isPaused = true;
+//           chrome.storage.local.set({ isPaused: true });
+//           stopTimer();
+//         }
+//       }
+//     } catch (error) {
+//       console.error("Error checking window state:", error);
+//     }
+//   }
+// });
+
+function checkIfMinimized() {
+  chrome.windows.getCurrent(window => {
+    const isMinimized = window.state === 'minimized'
+    if (timerState.isWindowMinimized !== isMinimized) {
+      timerState.isWindowMinimized = isMinimized;
+      console.log(`Window state changed. Minimized: ${isMinimized}, State: ${window.state}`);
+
+      // When window is unminimized, check if we should resume the timer
+      if (!isMinimized && timerState.isYouTubeTab && timerState.isYouTubeVisible) {
+        console.log("Window unminimized with visible YouTube tab, resuming timer...");
+        timerState.isPaused = false;
+        chrome.storage.local.set({ isPaused: false });
+        startTimer();
+      } else if (isMinimized && timerState.pauseOnMinimize) {
+        console.log("Window minimized, pausing timer...");
+        timerState.isPaused = true;
+        chrome.storage.local.set({ isPaused: true });
+        stopTimer();
+      }
+    }
+  });
+}
+
+// Also listen for window state changes directly
+chrome.windows.onBoundsChanged.addListener(async (window) => {
+  console.log("Window bounds changed:", window);
+  // Check if this is the current window
+  if (window.focused) {
+    const isMinimized = window.state === 'minimized';
+
+    if (timerState.isWindowMinimized !== isMinimized) {
+      timerState.isWindowMinimized = isMinimized;
+      console.log(`Window bounds changed. Minimized: ${isMinimized}, State: ${window.state}`);
+
+      // Handle minimize/unminimize state
+      if (!isMinimized && timerState.isYouTubeTab && timerState.isYouTubeVisible) {
+        console.log("Window restored with visible YouTube tab, resuming timer...");
+        timerState.isPaused = false;
+        chrome.storage.local.set({ isPaused: false });
+        startTimer();
+      } else if (isMinimized && timerState.pauseOnMinimize) {
+        console.log("Window minimized, pausing timer...");
+        timerState.isPaused = true;
+        chrome.storage.local.set({ isPaused: true });
+        stopTimer();
+      }
+    }
   }
 });
 
 // Function to update tab visibility considering both document visibility and window state
 function updateTabVisibility() {
   const isVisible = !timerState.isWindowMinimized && timerState.isYouTubeVisible;
-  
+
   if (timerState.isYouTubeTab) {
     if (isVisible && !timerState.isPaused) {
       console.log("Tab is visible and not paused, starting timer...");
@@ -1206,8 +1315,14 @@ function updateTabVisibility() {
   }
 }
 
-// Update the existing handleVisibilityChange function to consider window state
+// Update the existing handleVisibilityChange function to be more robust
 function handleVisibilityChange(isVisible) {
+  console.log("Handling visibility change. isVisible:", isVisible, "Current state:", {
+    isWindowMinimized: timerState.isWindowMinimized,
+    isYouTubeTab: timerState.isYouTubeTab,
+    isPaused: timerState.isPaused
+  });
+
   timerState.isYouTubeVisible = isVisible;
 
   // If window is minimized, force isVisible to false
@@ -1215,23 +1330,36 @@ function handleVisibilityChange(isVisible) {
     timerState.isYouTubeVisible = false;
   }
 
-  // Update pause state based on visibility if pauseOnMinimize is enabled
-  if (timerState.pauseOnMinimize) {
-    timerState.isPaused = !timerState.isYouTubeVisible;
-  }
+  // Store visibility state
+  chrome.storage.local.set({
+    isYouTubeVisible: timerState.isYouTubeVisible
+  }).then(() => {
+    // Update pause state based on visibility if pauseOnMinimize is enabled
+    if (timerState.pauseOnMinimize) {
+      const shouldBePaused = !timerState.isYouTubeVisible;
 
-  // Notify content script of the current state
-  if (timerState.activeTabId) {
-    chrome.tabs
-      .sendMessage(timerState.activeTabId, {
+      // Only change pause state if it's different
+      if (timerState.isPaused !== shouldBePaused) {
+        timerState.isPaused = shouldBePaused;
+        chrome.storage.local.set({ isPaused: shouldBePaused });
+
+        if (shouldBePaused) {
+          stopTimer();
+        } else if (timerState.isYouTubeTab && timerState.remainingTime > 0 && !timerState.isOverrideActive) {
+          startTimer();
+        }
+      }
+    }
+
+    // Notify content script of the current state
+    if (timerState.activeTabId) {
+      chrome.tabs.sendMessage(timerState.activeTabId, {
         action: "visibilityStateUpdate",
         isVisible: timerState.isYouTubeVisible,
-        isPaused: timerState.isPaused,
-      })
-      .catch((err) =>
-        console.log("Error sending visibility update to content script:", err)
-      );
-  }
+        isPaused: timerState.isPaused
+      }).catch(err => console.log("Error sending visibility update to content script:", err));
+    }
+  }).catch(err => console.error("Error updating visibility state:", err));
 }
 
 // --- Function to schedule tracking reset at midnight --- //
@@ -1242,7 +1370,7 @@ function setupTrackingResetAlarm() {
     // Set alarm for next midnight
     const midnight = new Date(now);
     midnight.setHours(24, 0, 0, 0);
-    
+
     chrome.alarms.create("trackingResetAlarm", {
       when: midnight.getTime(),
       periodInMinutes: 1440 // Repeat daily

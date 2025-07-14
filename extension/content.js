@@ -30,21 +30,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+// Function to send visibility state with retries
+function sendVisibilityState(isVisible, retryCount = 0) {
+  const maxRetries = 3;
+  const retryDelay = 1000; // 1 second between retries
+
+  chrome.runtime.sendMessage(
+    { action: "updateVisibility", isVisible },
+    (response) => {
+      if (chrome.runtime.lastError) {
+        console.warn(
+          `Error sending visibility state (${isVisible}): ${chrome.runtime.lastError.message}`
+        );
+        if (retryCount < maxRetries) {
+          console.log(`Retrying in ${retryDelay}ms... (Attempt ${retryCount + 1}/${maxRetries})`);
+          setTimeout(() => {
+            sendVisibilityState(isVisible, retryCount + 1);
+          }, retryDelay);
+        }
+      } else {
+        console.log("Visibility state sent successfully.");
+      }
+    }
+  );
+}
+
 // Notify the background script of the initial visibility state
 const initialIsVisible =
   document.visibilityState === "visible" && document.hidden !== true;
-chrome.runtime.sendMessage(
-  { action: "updateVisibility", isVisible: initialIsVisible },
-  (response) => {
-    if (chrome.runtime.lastError) {
-      console.warn(
-        `Error sending initial visibility state (${initialIsVisible}): ${chrome.runtime.lastError.message}`
-      );
-    } else {
-      console.log("Initial visibility state sent successfully.");
-    }
-  }
-);
+sendVisibilityState(initialIsVisible);
 
 function formatTime(timeInSeconds) {
   const minutes = Math.floor(timeInSeconds / 60);
