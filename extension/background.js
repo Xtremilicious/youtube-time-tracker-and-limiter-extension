@@ -315,7 +315,7 @@ function resetDailyTracking() {
 }
 
 function updateTimeTracking(seconds = 1) {
-  console.log("Updating time tracking...");
+  //console.log("Updating time tracking...");
 
   if (trackingState.isResetting) return; // Prevent concurrent updates
 
@@ -336,7 +336,7 @@ function updateTimeTracking(seconds = 1) {
 
   // Save updated values
   chrome.storage.local.set({ timeTracking: updatedValues }, () => {
-    console.log("Time tracking updated:", updatedValues);
+    //console.log("Time tracking updated:", updatedValues);
     trackingState.timeTracking = updatedValues; // Update state after saving
     trackingState.isResetting = false; // Release lock
   });
@@ -438,6 +438,9 @@ function resetTimer() {
     timerState.overrideSetTimout = null;
     timerState.isOverrideActive = false;
     chrome.storage.local.set({ isOverrideActive: false }); // Update storage
+
+    // Force reset tracking state
+    updateAlarm(true);
   });
 }
 
@@ -836,7 +839,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 // --- ALARM LISTENER --- //
 chrome.alarms.onAlarm.addListener((alarm) => {
-  console.log(`Alarm triggered: ${alarm.name}`);
+  //console.log(`Alarm triggered: ${alarm.name}`);
 
   if (alarm.name === "resetTimerAlarm") {
     console.log("Reset timer alarm triggered. Resetting timer...");
@@ -855,7 +858,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 // --- NEW: Handles the logic for each timer tick --- //
 async function handleTimerTick() {
-  console.log("Handling timer tick...");
+  //console.log("Handling timer tick...");
 
   // Get the current state and last tick time
   const data = await chrome.storage.local.get([
@@ -876,12 +879,12 @@ async function handleTimerTick() {
   const elapsedSeconds = Math.round((now - lastTick) / 1000);
 
   // Log state for debugging
-  console.log("Timer tick state:", {
-    isPaused: timerState.isPaused,
-    isOverrideActive: timerState.isOverrideActive,
-    elapsedSeconds: elapsedSeconds,
-    remainingTime: timerState.remainingTime,
-  });
+  // console.log("Timer tick state:", {
+  //   isPaused: timerState.isPaused,
+  //   isOverrideActive: timerState.isOverrideActive,
+  //   elapsedSeconds: elapsedSeconds,
+  //   remainingTime: timerState.remainingTime,
+  // });
 
   // 1. Handle insignificant time elapsed
   if (elapsedSeconds <= 0) {
@@ -903,7 +906,7 @@ async function handleTimerTick() {
   }
 
   // 3. If NOT Paused, tracking SHOULD occur
-  console.log("Timer not paused. Updating tracking...");
+  //console.log("Timer not paused. Updating tracking...");
   updateTimeTracking(elapsedSeconds); // Update by actual elapsed time
 
   // 4. Handle Override State (Tracking done, no timer decrement)
@@ -914,14 +917,14 @@ async function handleTimerTick() {
   }
 
   // 5. Handle Timer Running Normally (Not paused, not override)
-  console.log("Timer running normally.");
+  //console.log("Timer running normally.");
   if (timerState.remainingTime > 0) {
     timerState.remainingTime -= elapsedSeconds;
     if (timerState.remainingTime < 0) timerState.remainingTime = 0;
 
-    console.log(
-      `Decrementing time. New remainingTime: ${timerState.remainingTime}`
-    );
+    // console.log(
+    //   `Decrementing time. New remainingTime: ${timerState.remainingTime}`
+    // );
 
     // Update badge and store new state
     updateBadge();
