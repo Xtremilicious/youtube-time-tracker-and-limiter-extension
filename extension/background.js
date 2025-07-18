@@ -371,17 +371,32 @@ function redirectToBlockingPage() {
       console.log(
         `Redirecting tracked YouTube tab ${trackedTabId} to blocking page.`
       );
-      // Save the tracked tab's original URL
-      chrome.storage.local.set({ originalUrl: tab.url }, () => {
-        // Update the tracked tab's URL
-        chrome.tabs.update(trackedTabId, { url: blockingPageURL }, () => {
-          if (chrome.runtime.lastError) {
-            console.error(
-              `Error updating tab ${trackedTabId} to blocking page: ${chrome.runtime.lastError.message}`
-            );
-          }
-        });
+
+      let urlSaved = false;
+      chrome.tabs.sendMessage(trackedTabId, { msg: "logVideoURL" }, function (response) {
+        if (response) {
+          const urlWithTime = response;
+          chrome.storage.local.set({ originalUrl: urlWithTime }, function () {
+            chrome.tabs.update(trackedTabId, { url: blockingPageURL });
+          });
+          console.log(`Saved URL with time: ${urlWithTime}`);
+          urlSaved = true;
+        }
       });
+
+      if (!urlSaved) {
+        // Save the tracked tab's original URL
+        chrome.storage.local.set({ originalUrl: tab.url }, () => {
+          // Update the tracked tab's URL
+          chrome.tabs.update(trackedTabId, { url: blockingPageURL }, () => {
+            if (chrome.runtime.lastError) {
+              console.error(
+                `Error updating tab ${trackedTabId} to blocking page: ${chrome.runtime.lastError.message}`
+              );
+            }
+          });
+        });
+      }
     } else {
       console.log(
         `Did not redirect tab ${trackedTabId}. Tab not found, URL changed, or no longer YouTube.`

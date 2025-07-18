@@ -24,9 +24,22 @@ document.addEventListener("visibilitychange", handleVisibilityChange);
 
 // Listen for visibility state updates from the background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log("Received message from background script:", message);
   if (message.action === "visibilityStateUpdate") {
     console.log("Received visibility state update:", message);
     // You can use message.isVisible and message.isPaused here to update UI if needed
+  }
+
+  if (message.msg === 'logVideoURL') {
+    let video = document.getElementsByClassName('video-stream')[0];
+    let totalSeconds = Math.floor(video.currentTime);
+    if (video && video.currentTime > 0) {
+      sendResponse(location.href?.split("&t=")[0] + "&t=" + totalSeconds)
+    }
+    else {
+      sendResponse(location.href);
+    }
+
   }
 });
 
